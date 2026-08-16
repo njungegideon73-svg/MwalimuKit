@@ -1,0 +1,32 @@
+<svg width="1400" height="420" viewBox="0 0 1400 420" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1400" y2="420" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0F172A"/>
+      <stop offset="0.5" stop-color="#14532D"/>
+      <stop offset="1" stop-color="#0EA5E9"/>
+    </linearGradient>
+    <linearGradient id="panel" x1="140" y1="90" x2="400" y2="330" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F8FAFC" stop-opacity="0.26"/>
+      <stop offset="1" stop-color="#A7F3D0" stop-opacity="0.12"/>
+    </linearGradient>
+  </defs>
+  <rect width="1400" height="420" rx="28" fill="url(#bg)"/>
+  <g transform="translate(70 60)">
+    <rect width="300" height="300" rx="52" fill="url(#panel)" stroke="#E2E8F0" stroke-opacity="0.2"/>
+    <rect x="42" y="38" width="216" height="52" rx="16" fill="#F8FAFC" fill-opacity="0.16"/>
+    <rect x="42" y="110" width="216" height="120" rx="22" fill="#F8FAFC" fill-opacity="0.12"/>
+    <path d="M82 82H122" stroke="#E2E8F0" stroke-width="12" stroke-linecap="round"/>
+    <path d="M82 156V220H218V156" stroke="#E2E8F0" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M102 196V246" stroke="#E2E8F0" stroke-width="12" stroke-linecap="round"/>
+    <path d="M150 196V246" stroke="#E2E8F0" stroke-width="12" stroke-linecap="round"/>
+    <path d="M198 196V246" stroke="#E2E8F0" stroke-width="12" stroke-linecap="round"/>
+    <path d="M62 266H238" stroke="#CFFAFE" stroke-width="12" stroke-linecap="round" opacity="0.9"/>
+  </g>
+  <g transform="translate(450 96)">
+    <text x="0" y="90" fill="#F8FAFC" font-family="Segoe UI, Arial, sans-serif" font-size="78" font-weight="700">MwalimuKit</text>
+    <text x="2" y="150" fill="#CFFAFE" font-family="Segoe UI, Arial, sans-serif" font-size="26" letter-spacing="3" font-weight="600">PLAN • ASSESS • REPORT</text>
+    <rect x="0" y="178" width="440" height="2" rx="1" fill="#A7F3D0" fill-opacity="0.7"/>
+    <text x="0" y="240" fill="#E2E8F0" font-family="Segoe UI, Arial, sans-serif" font-size="30" font-weight="500">CBC-aligned school assessment workflows</text>
+    <text x="0" y="286" fill="#CBD5E1" font-family="Segoe UI, Arial, sans-serif" font-size="24" font-weight="400">Offline-first teacher tools for Kenyan classrooms</text>
+  </g>
+</svg>
