@@ -1,0 +1,20 @@
+{
+  "name": "mwalimukit",
+  "private": true,
+  "version": "0.1.0",
+  "description": "MwalimuKit monorepo root",
+  "workspaces": [
+    "web",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm --workspace web run dev",
+    "build": "npm --workspace web run build",
+    "lint": "npm --workspace web run lint",
+    "typecheck": "npm --workspace web run typecheck"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  }
+}

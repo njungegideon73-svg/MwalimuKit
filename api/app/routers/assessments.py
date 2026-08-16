@@ -1,0 +1,137 @@
+"""Assessment generation + CRUD."""
+from datetime import datetime, timezone
+from uuid import UUID, uuid4
+
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.ai.factory import get_provider
+from app.core.db import get_db
+from app.core.deps import CurrentUser
+from app.models.assessment import Assessment, AssessmentSource
+from app.models.curriculum import LearningArea
+from app.schemas.assessment import (
+    AssessmentIn, AssessmentOut, GenerateAssessmentRequest, GenerateAssessmentResponse,
+)
+
+
+router = APIRouter()
+
+
+@router.post("/generate", response_model=GenerateAssessmentResponse)
+async def generate(req: GenerateAssessmentRequest, user: CurrentUser) -> GenerateAssessmentResponse:
+    provider = get_provider()
+    result = await provider.generate_assessment(
+        learning_area=req.learning_area_code,
+        strand=req.strand_code,
+        sub_strand=", ".join(req.sub_strand_codes),
+        grade_level=req.grade_level,
+        teacher_prompt=req.teacher_prompt,
+        item_count=req.item_count,
+    )
+    return GenerateAssessmentResponse(
+        rubric=result.rubric,
+        items=result.items,
+        provider=result.provider,
+        model=result.model,
+    )
+
+
+@router.get("", response_model=list[AssessmentOut])
+async def list_assessments(user: CurrentUser, db: AsyncSession = Depends(get_db)) -> list[AssessmentOut]:
+    rows = (
+        await db.execute(
+            select(Assessment)
+            .where(Assessment.school_id == user.school_id, Assessment.deleted_at.is_(None))
+            .order_by(Assessment.updated_at.desc())
+        )
+    ).scalars().all()
+    return [_to_out(a) for a in rows]
+
+
+@router.post("", response_model=AssessmentOut)
+async def create_assessment(
+    payload: AssessmentIn, user: CurrentUser, db: AsyncSession = Depends(get_db)
+) -> AssessmentOut:
+    la = (
+        await db.execute(select(LearningArea).where(LearningArea.code == payload.learning_area_code))
+    ).scalar_one_or_none()
+    if la is None:
+        raise HTTPException(status_code=400, detail="Unknown learning_area_code")
+
+    source = AssessmentSource(payload.source) if payload.source in {s.value for s in AssessmentSource} else AssessmentSource.manual
+    a = Assessment(
+        id=uuid4(),
+        owner_id=user.id,
+        school_id=user.school_id,
+        learning_area_id=la.id,
+        name=payload.name,
+        description=payload.description,
+        source=source,
+        rubric=payload.rubric.model_dump(),
+        items=[i.model_dump() for i in payload.items],
+        tags=payload.tags,
+        is_favourite=payload.is_favourite,
+    )
+    db.add(a)
+    await db.commit()
+    await db.refresh(a)
+    return _to_out(a)
+
+
+@router.get("/{assessment_id}", response_model=AssessmentOut)
+async def get_assessment(
+    assessment_id: UUID, user: CurrentUser, db: AsyncSession = Depends(get_db)
+) -> AssessmentOut:
+    a = (
+        await db.execute(
+            select(Assessment).where(
+                Assessment.id == assessment_id,
+                Assessment.school_id == user.school_id,
+                Assessment.deleted_at.is_(None),
+            )
+        )
+    ).scalar_one_or_none()
+    if a is None:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+    return _to_out(a)
+
+
+@router.delete("/{assessment_id}")
+async def soft_delete(
+    assessment_id: UUID, user: CurrentUser, db: AsyncSession = Depends(get_db)
+) -> dict:
+    a = (
+        await db.execute(
+            select(Assessment).where(
+                Assessment.id == assessment_id, Assessment.school_id == user.school_id
+            )
+        )
+    ).scalar_one_or_none()
+    if a is None:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+    a.deleted_at = datetime.now(tz=timezone.utc)
+    await db.commit()
+    return {"deleted": True}
+
+
+def _to_out(a: Assessment) -> AssessmentOut:
+    return AssessmentOut(
+        id=a.id,
+        owner_id=a.owner_id,
+        school_id=a.school_id,
+        name=a.name,
+        description=a.description,
+        learning_area_code="",
+        strand_code="",
+        sub_strand_codes=[],
+        source=a.source.value if hasattr(a.source, "value") else str(a.source),
+        rubric=a.rubric,
+        items=a.items,
+        tags=a.tags,
+        is_favourite=a.is_favourite,
+        created_at=a.created_at.isoformat(),
+        updated_at=a.updated_at.isoformat(),
+        deleted_at=a.deleted_at.isoformat() if a.deleted_at else None,
+    )

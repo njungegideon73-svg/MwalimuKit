@@ -1,0 +1,142 @@
+# 06 — Architecture
+
+## High-level diagram
+
+```
++----------------------+         +------------------------+
+|  Browser / PWA       |  HTTPS  |  FastAPI backend       |
+|                      | <-----> |  (api/app)             |
+|  - React + Vite      |         |                        |
+|  - Dexie (IndexedDB) |         |  - Routers             |
+|  - Service Worker    |         |  - Services            |
+|  - Background Sync   |         |  - AI provider (proxy) |
++----------+-----------+         +-----------+------------+
+           |                                 |
+           |   (background sync)             |
+           v                                 v
+   Local IndexedDB                   +-------+--------+
+   - curriculum (read)               | PostgreSQL 16  |
+   - user data (read/write)          +----------------+
+   - sync queue                      +-------+--------+
+                                             |
+                                             v
+                                    +--------+--------+
+                                    | Redis 7         |
+                                    | (rate limit,     |
+                                    |  job queue)     |
+                                    +-----------------+
+
+   +------------------------+
+   | External AI provider   |  <-- only the API talks to this
+   | (OpenAI / Anthropic)   |
+   +------------------------+
+```
+
+## Components
+
+### Web app (`web/`)
+
+- **React 18 + Vite + TypeScript** for fast dev cycles.
+- **TanStack Query** for server state, with a custom "persisted
+  query client" that uses Dexie as the backing store so data survives
+  reloads.
+- **Zustand** for small slices of UI state.
+- **Dexie** for IndexedDB.
+- **shadcn/ui + Tailwind** for components.
+- **Workbox** for the service worker (precaching + Background Sync).
+- **react-hook-form + zod** for forms and validation.
+
+### Backend (`api/`)
+
+- **FastAPI** with explicit routers per domain
+  (`auth`, `schools`, `curriculum`, `assessments`, `classes`,
+  `learners`, `runs`, `scores`, `feature_flags`).
+- **SQLAlchemy 2.x** with async sessions (`asyncpg`).
+- **Alembic** for migrations.
+- **Redis** for rate limits and (later) background jobs.
+- **Pydantic v2** for schemas.
+- **Argon2** for password hashing.
+- **python-jose** for JWT.
+
+### Shared package (`packages/shared/`)
+
+- TypeScript types that mirror the API contract.
+- A JSON catalogue of CBC learning areas, strands, and sub-strands
+  (seeded into the DB and bundled into the web app for offline use).
+- Default rubric JSON used when AI generation is disabled.
+
+### Mobile (`mobile/`)
+
+- v0.1: the PWA is installable on Android via "Add to Home Screen".
+  No native code yet.
+- v1.x (optional): wrap the same web build with **Capacitor** and ship
+  an APK / AAB. The PWA stays the source of truth.
+
+## Offline strategy
+
+1. On first load (online), the service worker precaches the app shell
+   and the curriculum JSON.
+2. On login, the app fetches the user's assessments, classes, learners,
+   and any in-progress runs, and writes them into Dexie.
+3. All writes go to Dexie first. Each row is marked `dirty=true` and
+   queued by entity type.
+4. The Background Sync API (or a `online` event fallback) drains the
+   queue. Batch endpoints accept a list of writes with client-side
+   UUIDs for idempotency.
+5. The service worker also caches read-only GETs with a
+   stale-while-revalidate policy so opening the app cold on a flaky
+   network still feels instant.
+
+## Authentication flow
+
+- Email + password → `POST /auth/login` → `{ access, refresh }`.
+- Access token (15 min) sent on every API call as `Authorization:
+  Bearer ...`.
+- Refresh token (30 days) stored in IndexedDB; if a 401 hits, the web
+  app tries to refresh once before showing "Session expired".
+- All data endpoints scope by `school_id` derived from the JWT — the
+  client never sends `school_id`.
+
+## AI provider abstraction
+
+`api/app/ai/provider.py` defines an interface:
+
+```python
+class AIProvider(Protocol):
+    async def generate_assessment(
+        self,
+        *,
+        learning_area: str,
+        strand: str,
+        sub_strand: str,
+        grade_level: str,
+        teacher_prompt: str | None = None,
+    ) -> GeneratedAssessment: ...
+```
+
+Two implementations ship:
+
+- `MockProvider` — returns deterministic stub data so the app is usable
+  end-to-end without an API key.
+- `OpenAIProvider` (and an AnthropicProvider) — real calls. The choice
+  is env-driven (`AI_PROVIDER`).
+
+The system prompt constrains the model to:
+
+- Kenyan context (names, places, currency in KES, English/Kiswahili
+  aware).
+- 4-level CBC rubric vocabulary.
+- 5 items by default, configurable.
+
+## Deployment
+
+- **Dev**: `docker compose` from `infra/`.
+- **Prod**: managed hosting
+  - Web: Fly.io (or Render static site).
+  - API: Fly.io / Render.
+  - DB: Supabase Postgres or Neon.
+  - Redis: Upstash.
+  - Object storage (later, for PDFs): Cloudflare R2.
+
+The repository contains a single `Dockerfile` per service and a
+`fly.toml` stub in `infra/fly.toml.example`.
