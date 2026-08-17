@@ -22,6 +22,20 @@ import { BillingPage } from '@/pages/BillingPage';
 import { ReportCardPage } from '@/pages/ReportCardPage';
 import { Layout } from '@/components/Layout';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
+import { RoleBasedRoute } from '@/components/RoleBasedRoute';
+
+// Admin Console Pages
+import { SuperAdminDashboardPage } from '@/pages/admin/SuperAdminDashboardPage';
+import { SchoolsManagementPage } from '@/pages/admin/SchoolsManagementPage';
+import { UsersManagementPage } from '@/pages/admin/UsersManagementPage';
+import { LearnersManagementPage } from '@/pages/admin/LearnersManagementPage';
+import { SystemSettingsPage } from '@/pages/admin/SystemSettingsPage';
+
+// School Admin Pages
+import { SchoolAdminDashboardPage } from '@/pages/school-admin/SchoolAdminDashboardPage';
+import { TeachersManagementPage } from '@/pages/school-admin/TeachersManagementPage';
+import { SchoolLearnersManagementPage } from '@/pages/school-admin/SchoolLearnersManagementPage';
+import { SchoolClassesManagementPage } from '@/pages/school-admin/SchoolClassesManagementPage';
 
 function CapacitorBackButton() {
   const navigate = useNavigate();
@@ -110,6 +124,83 @@ export default function App() {
                 <Route path="/roadmap" element={<RoadmapPage />} />
                 <Route path="/billing" element={<BillingPage />} />
                 <Route path="/reports/learner/:learnerId" element={<ReportCardPage />} />
+                
+                {/* Super Admin Routes */}
+                <Route
+                  path="/admin"
+                  element={
+                    <RoleBasedRoute allowedRoles={['super_admin']}>
+                      <SuperAdminDashboardPage />
+                    </RoleBasedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/schools"
+                  element={
+                    <RoleBasedRoute allowedRoles={['super_admin']}>
+                      <SchoolsManagementPage />
+                    </RoleBasedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/users"
+                  element={
+                    <RoleBasedRoute allowedRoles={['super_admin']}>
+                      <UsersManagementPage />
+                    </RoleBasedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/learners"
+                  element={
+                    <RoleBasedRoute allowedRoles={['super_admin']}>
+                      <LearnersManagementPage />
+                    </RoleBasedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/settings"
+                  element={
+                    <RoleBasedRoute allowedRoles={['super_admin']}>
+                      <SystemSettingsPage />
+                    </RoleBasedRoute>
+                  }
+                />
+
+                {/* School Admin Routes */}
+                <Route
+                  path="/school-admin"
+                  element={
+                    <RoleBasedRoute allowedRoles={['school_admin', 'super_admin']}>
+                      <SchoolAdminDashboardPage />
+                    </RoleBasedRoute>
+                  }
+                />
+                <Route
+                  path="/school-admin/teachers"
+                  element={
+                    <RoleBasedRoute allowedRoles={['school_admin', 'super_admin']}>
+                      <TeachersManagementPage />
+                    </RoleBasedRoute>
+                  }
+                />
+                <Route
+                  path="/school-admin/learners"
+                  element={
+                    <RoleBasedRoute allowedRoles={['school_admin', 'super_admin']}>
+                      <SchoolLearnersManagementPage />
+                    </RoleBasedRoute>
+                  }
+                />
+                <Route
+                  path="/school-admin/classes"
+                  element={
+                    <RoleBasedRoute allowedRoles={['school_admin', 'super_admin']}>
+                      <SchoolClassesManagementPage />
+                    </RoleBasedRoute>
+                  }
+                />
+
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </Layout>

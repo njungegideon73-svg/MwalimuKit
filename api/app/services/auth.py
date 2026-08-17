@@ -76,7 +76,7 @@ async def refresh_tokens(db: AsyncSession, refresh_token: str) -> TokenPair:
 def _pair(user: User) -> TokenPair:
     role = user.role.value if hasattr(user.role, "value") else str(user.role)
     return TokenPair(
-        access_token=create_access_token(str(user.id)),
+        access_token=create_access_token(str(user.id), role=role, school_id=str(user.school_id)),
         refresh_token=create_refresh_token(str(user.id)),
         user=UserOut(
             id=user.id,

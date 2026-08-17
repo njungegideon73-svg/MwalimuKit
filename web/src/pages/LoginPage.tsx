@@ -15,6 +15,7 @@ type FormData = z.infer<typeof schema>;
 
 export function LoginPage() {
   const login = useAuthStore((s) => s.login);
+  const getRedirectPath = useAuthStore((s) => s.getRedirectPath);
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
 
@@ -26,7 +27,8 @@ export function LoginPage() {
     setLoading(true);
     try {
       await login(data.email, data.password);
-      navigate('/');
+      const redirectPath = getRedirectPath();
+      navigate(redirectPath);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Login failed';
       toast.error(msg);

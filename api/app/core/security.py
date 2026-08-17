@@ -23,7 +23,7 @@ def verify_password(plain: str, hashed: str) -> bool:
     return pwd_context.verify(plain, hashed)
 
 
-def _create_token(subject: str, ttl: timedelta, token_type: str) -> str:
+def _create_token(subject: str, ttl: timedelta, token_type: str, extra_claims: dict | None = None) -> str:
     now = datetime.now(tz=timezone.utc)
     payload = {
         "sub": subject,
@@ -32,11 +32,18 @@ def _create_token(subject: str, ttl: timedelta, token_type: str) -> str:
         "exp": int((now + ttl).timestamp()),
         "jti": str(uuid.uuid4()),
     }
+    if extra_claims:
+        payload.update(extra_claims)
     return jwt.encode(payload, settings.secret_key, algorithm=JWT_ALGORITHM)
 
 
-def create_access_token(user_id: str) -> str:
-    return _create_token(user_id, timedelta(minutes=settings.access_token_ttl_minutes), "access")
+def create_access_token(user_id: str, role: str | None = None, school_id: str | None = None) -> str:
+    extra_claims = {}
+    if role:
+        extra_claims["role"] = role
+    if school_id:
+        extra_claims["school_id"] = school_id
+    return _create_token(user_id, timedelta(minutes=settings.access_token_ttl_minutes), "access", extra_claims)
 
 
 def create_refresh_token(user_id: str) -> str:

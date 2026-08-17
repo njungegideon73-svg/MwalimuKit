@@ -11,17 +11,34 @@ import {
   Shield,
   Map,
   CreditCard,
+  School,
+  GraduationCap,
 } from 'lucide-react';
 import { useState } from 'react';
 
 const navItems = [
-  { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/assessments', icon: ClipboardList, label: 'Assessments' },
-  { to: '/classes', icon: Users, label: 'Classes' },
-  { to: '/admin', icon: Shield, label: 'School Dashboard' },
-  { to: '/roadmap', icon: Map, label: 'Roadmap' },
-  { to: '/billing', icon: CreditCard, label: 'Billing' },
-  { to: '/settings', icon: Settings, label: 'Settings' },
+  { to: '/', icon: LayoutDashboard, label: 'Dashboard', roles: ['teacher', 'school_admin', 'super_admin'] },
+  { to: '/assessments', icon: ClipboardList, label: 'Assessments', roles: ['teacher', 'school_admin', 'super_admin'] },
+  { to: '/classes', icon: Users, label: 'Classes', roles: ['teacher', 'school_admin', 'super_admin'] },
+  { to: '/admin', icon: Shield, label: 'School Dashboard', roles: ['school_admin', 'super_admin'] },
+  { to: '/roadmap', icon: Map, label: 'Roadmap', roles: ['teacher', 'school_admin', 'super_admin'] },
+  { to: '/billing', icon: CreditCard, label: 'Billing', roles: ['school_admin', 'super_admin'] },
+  { to: '/settings', icon: Settings, label: 'Settings', roles: ['teacher', 'school_admin', 'super_admin'] },
+];
+
+const adminNavItems = [
+  { to: '/admin', icon: Shield, label: 'Admin Dashboard', roles: ['super_admin'] },
+  { to: '/admin/schools', icon: School, label: 'Manage Schools', roles: ['super_admin'] },
+  { to: '/admin/users', icon: Users, label: 'Manage Users', roles: ['super_admin'] },
+  { to: '/admin/learners', icon: GraduationCap, label: 'Manage Learners', roles: ['super_admin'] },
+  { to: '/admin/settings', icon: Settings, label: 'System Settings', roles: ['super_admin'] },
+];
+
+const schoolAdminNavItems = [
+  { to: '/school-admin', icon: Shield, label: 'School Dashboard', roles: ['school_admin'] },
+  { to: '/school-admin/teachers', icon: Users, label: 'Manage Teachers', roles: ['school_admin'] },
+  { to: '/school-admin/learners', icon: GraduationCap, label: 'Manage Learners', roles: ['school_admin'] },
+  { to: '/school-admin/classes', icon: Users, label: 'Manage Classes', roles: ['school_admin'] },
 ];
 
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -29,6 +46,22 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const logout = useAuthStore((s) => s.logout);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
+
+  const userRole = user?.role || 'teacher';
+  const isSuperAdmin = userRole === 'super_admin';
+  const isSchoolAdmin = userRole === 'school_admin';
+
+  const filteredNavItems = navItems.filter(item => 
+    item.roles.includes(userRole)
+  );
+
+  const filteredAdminNavItems = adminNavItems.filter(item => 
+    item.roles.includes(userRole)
+  );
+
+  const filteredSchoolAdminNavItems = schoolAdminNavItems.filter(item => 
+    item.roles.includes(userRole)
+  );
 
   return (
     <div className="flex min-h-screen bg-gray-50">
@@ -41,7 +74,62 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <span className="text-lg font-bold text-gray-900">MwalimuKit</span>
         </div>
         <nav className="flex-1 px-4 py-4 space-y-1">
-          {navItems.map((item) => (
+          {isSuperAdmin && (
+            <>
+              <div className="px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                System Admin
+              </div>
+              {filteredAdminNavItems.map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  end={item.to === '/admin'}
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+                      isActive
+                        ? 'bg-primary-50 text-primary-700'
+                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                    }`
+                  }
+                >
+                  <item.icon className="h-5 w-5" />
+                  {item.label}
+                </NavLink>
+              ))}
+              <div className="border-t border-gray-200 my-2" />
+            </>
+          )}
+
+          {isSchoolAdmin && (
+            <>
+              <div className="px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                School Admin
+              </div>
+              {filteredSchoolAdminNavItems.map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  end={item.to === '/school-admin'}
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+                      isActive
+                        ? 'bg-primary-50 text-primary-700'
+                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                    }`
+                  }
+                >
+                  <item.icon className="h-5 w-5" />
+                  {item.label}
+                </NavLink>
+              ))}
+              <div className="border-t border-gray-200 my-2" />
+            </>
+          )}
+
+          <div className="px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+            {isSuperAdmin ? 'System' : isSchoolAdmin ? 'School' : 'Main'}
+          </div>
+          {filteredNavItems.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
@@ -106,7 +194,64 @@ export function Layout({ children }: { children: React.ReactNode }) {
               </button>
             </div>
             <nav className="flex-1 px-3 py-4 space-y-1">
-              {navItems.map((item) => (
+              {isSuperAdmin && (
+                <>
+                  <div className="px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                    System Admin
+                  </div>
+                  {filteredAdminNavItems.map((item) => (
+                    <NavLink
+                      key={item.to}
+                      to={item.to}
+                      end={item.to === '/admin'}
+                      onClick={() => setSidebarOpen(false)}
+                      className={({ isActive }) =>
+                        `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium ${
+                          isActive
+                            ? 'bg-primary-50 text-primary-700'
+                            : 'text-gray-600 hover:bg-gray-50'
+                        }`
+                      }
+                    >
+                      <item.icon className="h-5 w-5" />
+                      {item.label}
+                    </NavLink>
+                  ))}
+                  <div className="border-t border-gray-200 my-2" />
+                </>
+              )}
+
+              {isSchoolAdmin && (
+                <>
+                  <div className="px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                    School Admin
+                  </div>
+                  {filteredSchoolAdminNavItems.map((item) => (
+                    <NavLink
+                      key={item.to}
+                      to={item.to}
+                      end={item.to === '/school-admin'}
+                      onClick={() => setSidebarOpen(false)}
+                      className={({ isActive }) =>
+                        `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium ${
+                          isActive
+                            ? 'bg-primary-50 text-primary-700'
+                            : 'text-gray-600 hover:bg-gray-50'
+                        }`
+                      }
+                    >
+                      <item.icon className="h-5 w-5" />
+                      {item.label}
+                    </NavLink>
+                  ))}
+                  <div className="border-t border-gray-200 my-2" />
+                </>
+              )}
+
+              <div className="px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                {isSuperAdmin ? 'System' : isSchoolAdmin ? 'School' : 'Main'}
+              </div>
+              {filteredNavItems.map((item) => (
                 <NavLink
                   key={item.to}
                   to={item.to}
@@ -148,7 +293,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       {/* Mobile bottom nav */}
       <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-white border-t border-gray-200 px-2 pb-safe" role="navigation" aria-label="Mobile navigation">
         <div className="flex justify-around py-2">
-          {navItems.map((item) => {
+          {filteredNavItems.map((item) => {
             const isActive =
               item.to === '/'
                 ? location.pathname === '/'

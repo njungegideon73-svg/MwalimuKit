@@ -8,7 +8,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_db
-from app.core.deps import CurrentUser
+from app.core.deps import CurrentUser, SchoolAdminUser
 from app.models.assessment import Assessment
 from app.models.feature_request import FeatureRequest
 from app.models.feature_vote import FeatureVote
@@ -25,7 +25,7 @@ router = APIRouter()
 # ── Dashboard ────────────────────────────────────────────────────────────────
 
 @router.get("/dashboard")
-async def admin_dashboard(user: CurrentUser, db: AsyncSession = Depends(get_db)) -> dict:
+async def admin_dashboard(user: SchoolAdminUser, db: AsyncSession = Depends(get_db)) -> dict:
     school_filter = lambda T: T.school_id == user.school_id  # noqa: E731
 
     total_learners = (

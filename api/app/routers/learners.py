@@ -9,30 +9,49 @@ from app.core.db import get_db
 from app.core.deps import CurrentUser
 from app.models.learner import Learner
 from app.models.school_class import SchoolClass
+from app.models.user import UserRole
 from app.schemas.classes import LearnerBulkIn, LearnerIn, LearnerOut, LearnerUpdate
 
 
 router = APIRouter()
 
 
-async def _class_owned(db: AsyncSession, teacher_id: UUID, class_id: UUID) -> SchoolClass:
-    c = (
-        await db.execute(
-            select(SchoolClass).where(
-                SchoolClass.id == class_id, SchoolClass.teacher_id == teacher_id
+async def _class_owned(db: AsyncSession, user: "User", class_id: UUID) -> SchoolClass:
+    user_role = user.role if hasattr(user.role, "value") else str(user.role)
+    if user_role in (UserRole.school_admin.value, UserRole.super_admin.value):
+        # School admins and super admins can access any class in their school
+        c = (
+            await db.execute(
+                select(SchoolClass).where(
+                    SchoolClass.id == class_id, SchoolClass.school_id == user.school_id
+                )
             )
-        )
-    ).scalar_one_or_none()
+        ).scalar_one_or_none()
+    else:
+        # Teachers can only access their own classes
+        c = (
+            await db.execute(
+                select(SchoolClass).where(
+                    SchoolClass.id == class_id, SchoolClass.teacher_id == user.id
+                )
+            )
+        ).scalar_one_or_none()
     if c is None:
         raise HTTPException(status_code=404, detail="Class not found")
     return c
+
+
+# Type hint for the User model to avoid circular imports
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from app.models.user import User
 
 
 @router.get("/by-class/{class_id}", response_model=list[LearnerOut])
 async def list_for_class(
     class_id: UUID, user: CurrentUser, db: AsyncSession = Depends(get_db)
 ) -> list[LearnerOut]:
-    await _class_owned(db, user.id, class_id)
+    await _class_owned(db, user, class_id)
     rows = (
         await db.execute(
             select(Learner)
@@ -45,7 +64,7 @@ async def list_for_class(
 
 @router.post("", response_model=LearnerOut)
 async def add_learner(payload: LearnerIn, user: CurrentUser, db: AsyncSession = Depends(get_db)) -> LearnerOut:
-    await _class_owned(db, user.id, payload.class_id)
+    await _class_owned(db, user, payload.class_id)
     l = Learner(
         id=uuid4(),
         school_id=user.school_id,
@@ -62,7 +81,7 @@ async def add_learner(payload: LearnerIn, user: CurrentUser, db: AsyncSession = 
 
 @router.post("/bulk", response_model=list[LearnerOut])
 async def bulk_add(payload: LearnerBulkIn, user: CurrentUser, db: AsyncSession = Depends(get_db)) -> list[LearnerOut]:
-    await _class_owned(db, user.id, payload.class_id)
+    await _class_owned(db, user, payload.class_id)
     learners: list[Learner] = []
     for raw in payload.lines:
         raw = raw.strip()

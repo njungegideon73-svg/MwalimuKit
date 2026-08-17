@@ -6,9 +6,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_db
-from app.core.deps import CurrentUser
+from app.core.deps import CurrentUser, SchoolAdminUser
 from app.models.curriculum import LearningArea
 from app.models.school_class import SchoolClass
+from app.models.user import UserRole
 from app.schemas.classes import ClassIn, ClassOut
 
 
@@ -30,13 +31,25 @@ async def _resolve_learning_area_ids(
 
 @router.get("", response_model=list[ClassOut])
 async def list_classes(user: CurrentUser, db: AsyncSession = Depends(get_db)) -> list[ClassOut]:
-    rows = (
-        await db.execute(
-            select(SchoolClass)
-            .where(SchoolClass.teacher_id == user.id, SchoolClass.deleted_at.is_(None))
-            .order_by(SchoolClass.created_at.desc())
-        )
-    ).scalars().all()
+    user_role = user.role if hasattr(user.role, "value") else str(user.role)
+    if user_role in (UserRole.school_admin.value, UserRole.super_admin.value):
+        # School admins and super admins see all classes in their school
+        rows = (
+            await db.execute(
+                select(SchoolClass)
+                .where(SchoolClass.school_id == user.school_id, SchoolClass.deleted_at.is_(None))
+                .order_by(SchoolClass.created_at.desc())
+            )
+        ).scalars().all()
+    else:
+        # Teachers see only their own classes
+        rows = (
+            await db.execute(
+                select(SchoolClass)
+                .where(SchoolClass.teacher_id == user.id, SchoolClass.deleted_at.is_(None))
+                .order_by(SchoolClass.created_at.desc())
+            )
+        ).scalars().all()
     return [_to_out(c) for c in rows]
 
 
