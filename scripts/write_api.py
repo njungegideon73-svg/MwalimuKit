@@ -120,7 +120,14 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.TIMESTAMP(timezone=True), server_default=sa.func.now(), nullable=False),
     )
 
-    op.execute("CREATE TYPE IF NOT EXISTS user_role AS ENUM ('teacher', 'school_admin', 'super_admin')")
+    op.execute("""
+        DO $$
+        BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role') THEN
+                CREATE TYPE user_role AS ENUM ('teacher', 'school_admin', 'super_admin');
+            END IF;
+        END $$;
+    """)
 
     op.create_table(
         "users",
@@ -136,7 +143,14 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.TIMESTAMP(timezone=True), server_default=sa.func.now(), nullable=False),
     )
 
-    op.execute("CREATE TYPE IF NOT EXISTS curriculum_level AS ENUM ('lower_primary', 'upper_primary', 'jss')")
+    op.execute("""
+        DO $$
+        BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'curriculum_level') THEN
+                CREATE TYPE curriculum_level AS ENUM ('lower_primary', 'upper_primary', 'jss');
+            END IF;
+        END $$;
+    """)
 
     op.create_table(
         "learning_areas",
@@ -169,7 +183,14 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.TIMESTAMP(timezone=True), server_default=sa.func.now(), nullable=False),
     )
 
-    op.execute("CREATE TYPE IF NOT EXISTS assessment_source AS ENUM ('ai', 'manual', 'template')")
+    op.execute("""
+        DO $$
+        BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'assessment_source') THEN
+                CREATE TYPE assessment_source AS ENUM ('ai', 'manual', 'template');
+            END IF;
+        END $$;
+    """)
 
     op.create_table(
         "assessments",
@@ -263,9 +284,30 @@ def downgrade() -> None:
         "users", "schools",
     ]:
         op.drop_table(t)
-    op.execute("DROP TYPE IF EXISTS assessment_source")
-    op.execute("DROP TYPE IF EXISTS curriculum_level")
-    op.execute("DROP TYPE IF EXISTS user_role")
+    op.execute("""
+        DO $$
+        BEGIN
+            IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'assessment_source') THEN
+                DROP TYPE assessment_source;
+            END IF;
+        END $$;
+    """)
+    op.execute("""
+        DO $$
+        BEGIN
+            IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'curriculum_level') THEN
+                DROP TYPE curriculum_level;
+            END IF;
+        END $$;
+    """)
+    op.execute("""
+        DO $$
+        BEGIN
+            IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role') THEN
+                DROP TYPE user_role;
+            END IF;
+        END $$;
+    """)
 ''')
 
 
