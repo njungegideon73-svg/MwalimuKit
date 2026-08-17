@@ -76,6 +76,7 @@ async def run_migrations_online() -> None:
         config.get_section(config.config_ini_section, {}),
         prefix='sqlalchemy.',
         poolclass=pool.NullPool,
+        connect_args={"statement_cache_size": 0},
     )
     async with connectable.connect() as connection:
         await connection.run_sync(do_run_migrations)
@@ -437,7 +438,7 @@ def _to_async_url(url: str) -> str:
     return url
 
 
-engine = create_async_engine(_to_async_url(settings.database_url), future=True, pool_pre_ping=True)
+engine = create_async_engine(_to_async_url(settings.database_url), future=True, pool_pre_ping=True, connect_args={"statement_cache_size": 0})
 SessionLocal = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 
 
