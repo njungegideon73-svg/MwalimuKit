@@ -4,7 +4,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: mwalimu
-      POSTGRES_PASSWORD: mwalimu
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
       POSTGRES_DB: mwalimukit
     ports:
       - "5432:5432"
@@ -36,12 +36,10 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
-      DATABASE_URL: postgresql+psycopg://mwalimu:mwalimu@db:5432/mwalimukit
+      DATABASE_URL: postgresql+psycopg://mwalimu:${POSTGRES_PASSWORD:-changeme}@db:5432/mwalimukit
       REDIS_URL: redis://redis:6379/0
     ports:
       - "8000:8000"
-    volumes:
-      - ./api:/app
     depends_on:
       db:
         condition: service_healthy
@@ -50,23 +48,19 @@ services:
     command: >
       sh -c "alembic upgrade head &&
              python -m app.scripts.seed_curriculum &&
-             uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+             uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2"
 
   web:
     build:
       context: ./web
       dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: http://localhost:8000
     restart: unless-stopped
-    environment:
-      VITE_API_BASE_URL: http://localhost:8000
     ports:
-      - "5173:5173"
-    volumes:
-      - ./web:/app
-      - /app/node_modules
+      - "3000:80"
     depends_on:
       - api
-    command: npm run dev -- --host
 
 volumes:
   db_data:

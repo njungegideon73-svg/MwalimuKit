@@ -336,9 +336,12 @@ async def seed_demo_school(db: AsyncSession) -> None:
 
 
 async def main() -> None:
+    import os
+    env = os.environ.get("API_ENV", "development")
     async with SessionLocal() as db:
         await upsert_all(db)
-        await seed_demo_school(db)
+        if env != "production":
+            await seed_demo_school(db)
     print("Seeding complete.")
 
 
