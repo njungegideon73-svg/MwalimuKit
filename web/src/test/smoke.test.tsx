@@ -428,6 +428,7 @@ describe('F2: Class detail page', () => {
       if (path === '/classes/c1') return mockClasses[0];
       if (path === '/learners/by-class/c1') return mockLearners;
       if (path === '/assessments') return [mockAssessment];
+      if (path.startsWith('/runs')) return [];
       return {};
     });
   });
@@ -512,6 +513,7 @@ describe('F2: Class detail page', () => {
       if (path === '/classes/c1') return mockClasses[0];
       if (path === '/learners/by-class/c1') return [];
       if (path === '/assessments') return [];
+      if (path.startsWith('/runs')) return [];
       return {};
     });
     renderWithQuery(

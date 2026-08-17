@@ -8,6 +8,9 @@ import {
   LogOut,
   Menu,
   X,
+  Shield,
+  Map,
+  CreditCard,
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -15,6 +18,9 @@ const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/assessments', icon: ClipboardList, label: 'Assessments' },
   { to: '/classes', icon: Users, label: 'Classes' },
+  { to: '/admin', icon: Shield, label: 'School Dashboard' },
+  { to: '/roadmap', icon: Map, label: 'Roadmap' },
+  { to: '/billing', icon: CreditCard, label: 'Billing' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ];
 

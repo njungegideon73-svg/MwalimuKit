@@ -21,6 +21,8 @@ dependencies = [
     "anthropic>=0.25",
     "structlog>=24.1",
     "email-validator>=2.1",
+    "reportlab>=4.0",
+    "stripe>=7.0",
 ]
 [project.optional-dependencies]
 dev = [

@@ -1,10 +1,18 @@
 import { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Plus, Upload, Play, Pencil, Trash2, X, Check } from 'lucide-react';
+import { ArrowLeft, Plus, Upload, Play, Pencil, Trash2, X, Check, Download } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api';
 import toast from 'react-hot-toast';
 import type { SchoolClass, Learner, Assessment } from '@mwalimukit/types';
+
+interface AssessmentRun {
+  id: string;
+  assessment_id: string;
+  term: string | null;
+  started_at: string;
+  closed_at: string | null;
+}
 
 export function ClassDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -18,6 +26,8 @@ export function ClassDetailPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [editAdmNo, setEditAdmNo] = useState('');
+
+  const [selectedRunId, setSelectedRunId] = useState<string>('');
 
   const { data: cls, isLoading: loadingClass } = useQuery<SchoolClass>({
     queryKey: ['class', id],
@@ -35,6 +45,13 @@ export function ClassDetailPage() {
     queryKey: ['assessments'],
     queryFn: () => apiFetch('/assessments'),
   });
+
+  const { data: runsData } = useQuery<AssessmentRun[]>({
+    queryKey: ['runs', id],
+    queryFn: () => apiFetch(`/runs?class_id=${id}`),
+    enabled: !!id,
+  });
+  const runs = Array.isArray(runsData) ? runsData : [];
 
   const addMutation = useMutation({
     mutationFn: () =>
@@ -218,13 +235,68 @@ export function ClassDetailPage() {
                 <div>
                   <p className="font-medium text-sm text-gray-900">{a.name}</p>
                   <div className="flex items-center gap-2 mt-1">
-                    <span className="badge-primary text-xs">{a.learning_area_code}</span>
-                    <span className="text-xs text-gray-400">{a.items.length} items</span>
+                    <span className="badge-primary text-xs">{(a as any).learning_area_code || 'N/A'}</span>
+                    <span className="text-xs text-gray-400">{Array.isArray(a.items) ? a.items.length : 0} items</span>
                   </div>
                 </div>
                 <Play className="h-4 w-4 text-primary-500" />
               </Link>
             ))}
+          </div>
+        )}
+      </div>
+
+      {/* Reports */}
+      <div className="card">
+        <h2 className="font-semibold text-gray-900 mb-4">Reports</h2>
+        {runs.length === 0 ? (
+          <p className="text-sm text-gray-500">No assessment runs yet. Run an assessment first.</p>
+        ) : (
+          <div className="space-y-4">
+            <div>
+              <label className="label">Select a run</label>
+              <select
+                className="input"
+                value={selectedRunId}
+                onChange={(e) => setSelectedRunId(e.target.value)}
+              >
+                <option value="">Choose a run...</option>
+                {runs.map((r) => {
+                  const aName = assessments.find((a) => a.id === r.assessment_id)?.name || r.assessment_id;
+                  return (
+                    <option key={r.id} value={r.id}>
+                      {aName} — {r.term || 'No term'} ({new Date(r.started_at).toLocaleDateString()})
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+
+            {selectedRunId && (
+              <div className="space-y-3">
+                <a
+                  href={`/api/v1/reports/class/${id}/summary-csv?runId=${selectedRunId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn-secondary text-sm"
+                >
+                  <Download className="h-4 w-4" /> Download Class Summary CSV
+                </a>
+
+                <div className="divide-y divide-gray-100">
+                  {learners.map((l) => (
+                    <Link
+                      key={l.id}
+                      to={`/reports/learner/${l.id}?runId=${selectedRunId}`}
+                      className="flex items-center justify-between py-2.5 px-1 hover:text-primary-600 transition-colors"
+                    >
+                      <span className="text-sm font-medium text-gray-900">{l.full_name}</span>
+                      <span className="text-xs text-gray-400">View report card</span>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

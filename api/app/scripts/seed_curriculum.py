@@ -170,12 +170,6 @@ CATALOGUE: dict = {
         {"code": "LP-ART-ART-2.1", "strand_code": "LP-ART-ART", "name": "Drawing familiar objects", "sort_order": 1},
         {"code": "LP-PE-MOV-1.1",  "strand_code": "LP-PE-MOV",  "name": "Locomotor movements", "sort_order": 1},
         {"code": "LP-PE-HEAL-2.1", "strand_code": "LP-PE-HEAL", "name": "Personal hygiene habits", "sort_order": 1},
-        {"code": "JSS-ENG-LIS-1.1",  "strand_code": "JSS-ENG-LIS",  "name": "Listening for gist and detail", "sort_order": 1},
-        {"code": "JSS-ENG-READ-1.1", "strand_code": "JSS-ENG-READ", "name": "Reading comprehension", "sort_order": 1},
-        {"code": "JSS-ENG-WRIT-1.1", "strand_code": "JSS-ENG-WRIT", "name": "Paragraph writing", "sort_order": 1},
-        {"code": "JSS-MATH-NUM-1.1", "strand_code": "JSS-MATH-NUM", "name": "Integers and operations", "sort_order": 1},
-        {"code": "JSS-MATH-MEA-1.1", "strand_code": "JSS-MATH-MEA", "name": "Perimeter and area", "sort_order": 1},
-        {"code": "JSS-MATH-GEO-1.1", "strand_code": "JSS-MATH-GEO", "name": "Angles and triangles", "sort_order": 1},
         # Upper Primary sub-strands
         {"code": "UP-MATH-NUM-1.1", "strand_code": "UP-MATH-NUM", "name": "Place value (millions)", "sort_order": 1},
         {"code": "UP-MATH-NUM-1.2", "strand_code": "UP-MATH-NUM", "name": "Operations on whole numbers", "sort_order": 2},

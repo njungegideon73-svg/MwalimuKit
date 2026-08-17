@@ -16,6 +16,10 @@ import { ScoreEntryPage } from '@/pages/ScoreEntryPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { PrivacyPolicyPage } from '@/pages/PrivacyPolicyPage';
 import { AITransparencyPage } from '@/pages/AITransparencyPage';
+import { AdminDashboardPage } from '@/pages/AdminDashboardPage';
+import { RoadmapPage } from '@/pages/RoadmapPage';
+import { BillingPage } from '@/pages/BillingPage';
+import { ReportCardPage } from '@/pages/ReportCardPage';
 import { Layout } from '@/components/Layout';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 
@@ -102,6 +106,10 @@ export default function App() {
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="/privacy" element={<PrivacyPolicyPage />} />
                 <Route path="/ai-transparency" element={<AITransparencyPage />} />
+                <Route path="/admin" element={<AdminDashboardPage />} />
+                <Route path="/roadmap" element={<RoadmapPage />} />
+                <Route path="/billing" element={<BillingPage />} />
+                <Route path="/reports/learner/:learnerId" element={<ReportCardPage />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </Layout>
