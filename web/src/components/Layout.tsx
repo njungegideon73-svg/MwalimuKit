@@ -27,7 +27,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen bg-gray-50">
       {/* Desktop sidebar */}
-      <aside className="hidden lg:flex lg:w-64 lg:flex-col lg:fixed lg:inset-y-0 bg-white border-r border-gray-200">
+      <aside className="hidden lg:flex lg:w-64 lg:flex-col lg:fixed lg:inset-y-0 bg-white border-r border-gray-200" role="navigation" aria-label="Main navigation">
         <div className="flex h-16 items-center gap-2 px-6 border-b border-gray-200">
           <div className="h-8 w-8 rounded-lg bg-primary-500 flex items-center justify-center">
             <span className="text-white font-bold text-sm">MK</span>
@@ -140,7 +140,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </main>
 
       {/* Mobile bottom nav */}
-      <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-white border-t border-gray-200 px-2 pb-safe">
+      <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-white border-t border-gray-200 px-2 pb-safe" role="navigation" aria-label="Mobile navigation">
         <div className="flex justify-around py-2">
           {navItems.map((item) => {
             const isActive =

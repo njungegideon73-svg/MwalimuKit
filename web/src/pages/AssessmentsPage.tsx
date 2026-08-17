@@ -1,33 +1,29 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Search, Heart, Trash2 } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api';
 import toast from 'react-hot-toast';
 import type { Assessment } from '@mwalimukit/types';
 
 export function AssessmentsPage() {
-  const [assessments, setAssessments] = useState<Assessment[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [filterFav, setFilterFav] = useState(false);
 
-  useEffect(() => {
-    apiFetch<Assessment[]>('/assessments')
-      .then(setAssessments)
-      .catch(() => toast.error('Failed to load assessments'))
-      .finally(() => setLoading(false));
-  }, []);
+  const { data: assessments = [], isLoading } = useQuery<Assessment[]>({
+    queryKey: ['assessments'],
+    queryFn: () => apiFetch('/assessments'),
+  });
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Delete this assessment?')) return;
-    try {
-      await apiFetch(`/assessments/${id}`, { method: 'DELETE' });
-      setAssessments((prev) => prev.filter((a) => a.id !== id));
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => apiFetch(`/assessments/${id}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['assessments'] });
       toast.success('Assessment deleted');
-    } catch {
-      toast.error('Failed to delete');
-    }
-  };
+    },
+    onError: () => toast.error('Failed to delete'),
+  });
 
   const filtered = assessments.filter((a) => {
     if (filterFav && !a.is_favourite) return false;
@@ -75,7 +71,7 @@ export function AssessmentsPage() {
         </button>
       </div>
 
-      {loading ? (
+      {isLoading ? (
         <div className="space-y-3 animate-pulse">
           {[...Array(3)].map((_, i) => (
             <div key={i} className="h-20 bg-gray-200 rounded-xl" />
@@ -114,7 +110,9 @@ export function AssessmentsPage() {
                 </div>
               </Link>
               <button
-                onClick={() => handleDelete(a.id)}
+                onClick={() => {
+                  if (confirm('Delete this assessment?')) deleteMutation.mutate(a.id);
+                }}
                 className="p-2 text-gray-400 hover:text-red-600 transition-colors"
               >
                 <Trash2 className="h-4 w-4" />

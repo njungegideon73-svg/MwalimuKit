@@ -9,7 +9,7 @@ from app.core.db import get_db
 from app.core.deps import CurrentUser
 from app.models.learner import Learner
 from app.models.school_class import SchoolClass
-from app.schemas.classes import LearnerBulkIn, LearnerIn, LearnerOut
+from app.schemas.classes import LearnerBulkIn, LearnerIn, LearnerOut, LearnerUpdate
 
 
 router = APIRouter()
@@ -86,6 +86,50 @@ async def bulk_add(payload: LearnerBulkIn, user: CurrentUser, db: AsyncSession =
     for l in learners:
         await db.refresh(l)
     return [_to_out(l) for l in learners]
+
+
+@router.patch("/{learner_id}", response_model=LearnerOut)
+async def update_learner(
+    learner_id: UUID, payload: LearnerUpdate, user: CurrentUser, db: AsyncSession = Depends(get_db)
+) -> LearnerOut:
+    l = (
+        await db.execute(
+            select(Learner).where(
+                Learner.id == learner_id,
+                Learner.school_id == user.school_id,
+                Learner.deleted_at.is_(None),
+            )
+        )
+    ).scalar_one_or_none()
+    if l is None:
+        raise HTTPException(status_code=404, detail="Learner not found")
+    l.full_name = payload.full_name.strip()
+    l.admission_no = payload.admission_no
+    l.gender = payload.gender
+    await db.commit()
+    await db.refresh(l)
+    return _to_out(l)
+
+
+@router.delete("/{learner_id}")
+async def delete_learner(
+    learner_id: UUID, user: CurrentUser, db: AsyncSession = Depends(get_db)
+) -> dict:
+    from datetime import datetime, timezone
+    l = (
+        await db.execute(
+            select(Learner).where(
+                Learner.id == learner_id,
+                Learner.school_id == user.school_id,
+                Learner.deleted_at.is_(None),
+            )
+        )
+    ).scalar_one_or_none()
+    if l is None:
+        raise HTTPException(status_code=404, detail="Learner not found")
+    l.deleted_at = datetime.now(timezone.utc)
+    await db.commit()
+    return {"ok": True}
 
 
 def _to_out(l: Learner) -> LearnerOut:

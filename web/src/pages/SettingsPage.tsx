@@ -1,6 +1,7 @@
 import { useAuthStore } from '@/lib/auth-store';
-import { Download, LogOut } from 'lucide-react';
+import { Download, LogOut, Shield, Brain } from 'lucide-react';
 import { apiFetch } from '@/lib/api';
+import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import type { Assessment, SchoolClass, Learner } from '@mwalimukit/types';
 
@@ -89,6 +90,19 @@ export function SettingsPage() {
         <button onClick={logout} className="btn-danger">
           <LogOut className="h-4 w-4" /> Sign out
         </button>
+      </div>
+
+      {/* Legal & transparency */}
+      <div className="card">
+        <h2 className="font-semibold text-gray-900 mb-4">Legal & transparency</h2>
+        <div className="space-y-2">
+          <Link to="/privacy" className="flex items-center gap-2 text-sm text-primary-600 hover:underline">
+            <Shield className="h-4 w-4" /> Privacy Policy
+          </Link>
+          <Link to="/ai-transparency" className="flex items-center gap-2 text-sm text-primary-600 hover:underline">
+            <Brain className="h-4 w-4" /> AI Transparency
+          </Link>
+        </div>
       </div>
     </div>
   );

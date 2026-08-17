@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useAuthStore } from '@/lib/auth-store';
 import toast from 'react-hot-toast';
+import { CloudOff } from 'lucide-react';
 
 const schema = z.object({
   full_name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -19,6 +20,18 @@ export function SignupPage() {
   const signup = useAuthStore((s) => s.signup);
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -49,6 +62,12 @@ export function SignupPage() {
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="card space-y-4">
+          {!isOnline && (
+            <div className="flex items-center gap-2 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
+              <CloudOff className="h-4 w-4 shrink-0" />
+              Sign-up needs internet the first time. After that, everything works offline.
+            </div>
+          )}
           <div>
             <label className="label">Full name</label>
             <input {...register('full_name')} className="input" placeholder="Grace Muthoni" />
@@ -74,8 +93,8 @@ export function SignupPage() {
               Ask your school admin for the join code.
             </p>
           </div>
-          <button type="submit" disabled={loading} className="btn-primary w-full">
-            {loading ? 'Creating account...' : 'Create account'}
+          <button type="submit" disabled={loading || !isOnline} className="btn-primary w-full">
+            {loading ? 'Creating account...' : !isOnline ? 'Offline — connect to sign up' : 'Create account'}
           </button>
           <p className="text-center text-sm text-gray-500">
             Already have an account?{' '}

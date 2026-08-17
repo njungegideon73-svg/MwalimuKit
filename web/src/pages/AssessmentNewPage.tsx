@@ -1,14 +1,16 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { ArrowLeft, Sparkles, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, Sparkles, Plus, Trash2, Search, CloudOff } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api';
 import { getCurriculum } from '@/lib/curriculum';
+import { useFeatureFlags } from '@/lib/feature-flags';
 import { defaultRubric } from '@mwalimukit/rubrics';
 import toast from 'react-hot-toast';
-import type { LearningArea, Strand, SubStrand, AssessmentItem, Rubric } from '@mwalimukit/types';
+import type { AssessmentItem, Rubric } from '@mwalimukit/types';
 
 const schema = z.object({
   name: z.string().min(1, 'Assessment name is required'),
@@ -25,51 +27,31 @@ type FormData = z.infer<typeof schema>;
 
 export function AssessmentNewPage() {
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(false);
-  const [generating, setGenerating] = useState(false);
+  const queryClient = useQueryClient();
   const [items, setItems] = useState<AssessmentItem[]>([]);
   const [rubric, setRubric] = useState<Rubric>(defaultRubric());
-  const [curriculum, setCurriculum] = useState<{
-    learning_areas: LearningArea[];
-    strands: Strand[];
-    sub_strands: SubStrand[];
-  } | null>(null);
+  const [strandSearch, setStrandSearch] = useState('');
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   const { register, handleSubmit, watch, setValue } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: {
-      mode: 'ai',
-      grade_level: 'Grade 1',
-    },
+    defaultValues: { mode: 'ai', grade_level: 'Grade 1' },
   });
 
   const selectedLA = watch('learning_area_code');
   const selectedStrand = watch('strand_code');
   const mode = watch('mode');
+  const aiEnabled = useFeatureFlags((s) => s.ai_generation_enabled);
 
-  useEffect(() => {
-    getCurriculum().then(setCurriculum);
-  }, []);
+  const { data: curriculum, isLoading: curriculumLoading } = useQuery({
+    queryKey: ['curriculum'],
+    queryFn: getCurriculum,
+    staleTime: 5 * 60_000,
+  });
 
-  const filteredStrands = curriculum?.strands.filter((s) => s.learning_area_code === selectedLA) ?? [];
-  const filteredSubStrands = curriculum?.sub_strands.filter((s) => s.strand_code === selectedStrand) ?? [];
-
-  useEffect(() => {
-    setValue('strand_code', '');
-    setValue('sub_strand_code', '');
-  }, [selectedLA, setValue]);
-
-  useEffect(() => {
-    setValue('sub_strand_code', '');
-  }, [selectedStrand, setValue]);
-
-  const handleGenerate = useCallback(async (data: FormData) => {
-    setGenerating(true);
-    try {
-      const result = await apiFetch<{
-        rubric: Rubric;
-        items: AssessmentItem[];
-      }>('/assessments/generate', {
+  const generateMutation = useMutation({
+    mutationFn: (data: FormData) =>
+      apiFetch<{ rubric: Rubric; items: AssessmentItem[] }>('/assessments/generate', {
         method: 'POST',
         json: {
           learning_area_code: data.learning_area_code,
@@ -79,25 +61,18 @@ export function AssessmentNewPage() {
           teacher_prompt: data.teacher_prompt,
           item_count: 5,
         },
-      });
+      }),
+    onSuccess: (result) => {
       setItems(result.items);
       setRubric(result.rubric);
       toast.success('Assessment generated!');
-    } catch {
-      toast.error('Failed to generate assessment');
-    } finally {
-      setGenerating(false);
-    }
-  }, []);
+    },
+    onError: () => toast.error('Failed to generate assessment'),
+  });
 
-  const handleSave = async (data: FormData) => {
-    if (items.length === 0) {
-      toast.error('Add at least one assessment item');
-      return;
-    }
-    setLoading(true);
-    try {
-      const result = await apiFetch<{ id: string }>('/assessments', {
+  const saveMutation = useMutation({
+    mutationFn: (data: FormData) =>
+      apiFetch<{ id: string }>('/assessments', {
         method: 'POST',
         json: {
           name: data.name,
@@ -111,38 +86,63 @@ export function AssessmentNewPage() {
           tags: [],
           is_favourite: false,
         },
-      });
+      }),
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['assessments'] });
       toast.success('Assessment saved!');
       navigate(`/assessments/${result.id}`);
-    } catch {
-      toast.error('Failed to save assessment');
-    } finally {
-      setLoading(false);
+    },
+    onError: () => toast.error('Failed to save assessment'),
+  });
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  const filteredStrands = curriculum?.strands.filter((s) => {
+    if (s.learning_area_code !== selectedLA) return false;
+    if (!strandSearch) return true;
+    const q = strandSearch.toLowerCase();
+    return s.name.toLowerCase().includes(q) || s.code.toLowerCase().includes(q);
+  }) ?? [];
+  const filteredSubStrands = curriculum?.sub_strands.filter((s) => s.strand_code === selectedStrand) ?? [];
+
+  useEffect(() => { setValue('strand_code', ''); setValue('sub_strand_code', ''); }, [selectedLA, setValue]);
+  useEffect(() => { setValue('sub_strand_code', ''); }, [selectedStrand, setValue]);
+  useEffect(() => { if (!aiEnabled || !isOnline) setValue('mode', 'manual'); }, [aiEnabled, isOnline, setValue]);
+
+  const handleGenerate = (data: FormData) => {
+    generateMutation.mutate(data);
+  };
+
+  const handleSave = (data: FormData) => {
+    if (items.length === 0) {
+      toast.error('Add at least one assessment item');
+      return;
     }
+    saveMutation.mutate(data);
   };
 
   const addItem = () => {
-    setItems([
-      ...items,
-      {
-        id: `itm_${String(items.length + 1).padStart(2, '0')}`,
-        criterion: rubric.criteria[0]?.id ?? 'accuracy',
-        stem: '',
-        answer_guide: '',
-        max_level: 4,
-      },
-    ]);
+    setItems([...items, {
+      id: `itm_${String(items.length + 1).padStart(2, '0')}`,
+      criterion: rubric.criteria[0]?.id ?? 'accuracy',
+      stem: '', answer_guide: '', max_level: 4,
+    }]);
   };
 
-  const removeItem = (idx: number) => {
-    setItems(items.filter((_, i) => i !== idx));
-  };
-
-  const updateItem = (idx: number, field: keyof AssessmentItem, value: string) => {
+  const removeItem = (idx: number) => setItems(items.filter((_, i) => i !== idx));
+  const updateItem = (idx: number, field: keyof AssessmentItem, value: string) =>
     setItems(items.map((item, i) => (i === idx ? { ...item, [field]: value } : item)));
-  };
 
-  if (!curriculum) {
+  if (curriculumLoading || !curriculum) {
     return (
       <div className="space-y-4 animate-pulse">
         <div className="h-8 w-48 bg-gray-200 rounded" />
@@ -163,30 +163,29 @@ export function AssessmentNewPage() {
       </div>
 
       <form onSubmit={handleSubmit(mode === 'ai' && items.length === 0 ? handleGenerate : handleSave)}>
-        {/* Strand picker */}
         <div className="card space-y-4">
           <h2 className="font-semibold text-gray-900">1. Choose strand</h2>
-
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="label">Learning area</label>
               <select {...register('learning_area_code')} className="input">
                 <option value="">Select area...</option>
                 {curriculum.learning_areas.map((la) => (
-                  <option key={la.code} value={la.code}>
-                    {la.name} ({la.level})
-                  </option>
+                  <option key={la.code} value={la.code}>{la.name} ({la.level})</option>
                 ))}
               </select>
             </div>
             <div>
               <label className="label">Strand</label>
+              <div className="relative mb-1.5">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <input type="text" className="input pl-10" placeholder="Search strands by name or code..."
+                  value={strandSearch} onChange={(e) => setStrandSearch(e.target.value)} disabled={!selectedLA} />
+              </div>
               <select {...register('strand_code')} className="input" disabled={!selectedLA}>
                 <option value="">Select strand...</option>
                 {filteredStrands.map((s) => (
-                  <option key={s.code} value={s.code}>
-                    {s.code} — {s.name}
-                  </option>
+                  <option key={s.code} value={s.code}>{s.code} — {s.name}</option>
                 ))}
               </select>
             </div>
@@ -195,9 +194,7 @@ export function AssessmentNewPage() {
               <select {...register('sub_strand_code')} className="input" disabled={!selectedStrand}>
                 <option value="">Select sub-strand...</option>
                 {filteredSubStrands.map((ss) => (
-                  <option key={ss.code} value={ss.code}>
-                    {ss.code} — {ss.name}
-                  </option>
+                  <option key={ss.code} value={ss.code}>{ss.code} — {ss.name}</option>
                 ))}
               </select>
             </div>
@@ -209,11 +206,19 @@ export function AssessmentNewPage() {
 
           <div>
             <label className="label">Mode</label>
+            {!isOnline && mode === 'ai' && (
+              <div className="flex items-center gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 mb-2 text-xs text-amber-800">
+                <CloudOff className="h-3.5 w-3.5 shrink-0" />
+                AI generation needs internet — switching to manual mode
+              </div>
+            )}
             <div className="flex gap-4">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="radio" value="ai" {...register('mode')} className="accent-primary-500" />
-                <span className="text-sm">AI draft</span>
-              </label>
+              {aiEnabled && isOnline && (
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="radio" value="ai" {...register('mode')} className="accent-primary-500" />
+                  <span className="text-sm">AI draft</span>
+                </label>
+              )}
               <label className="flex items-center gap-2 cursor-pointer">
                 <input type="radio" value="manual" {...register('mode')} className="accent-primary-500" />
                 <span className="text-sm">Structured template</span>
@@ -221,31 +226,22 @@ export function AssessmentNewPage() {
             </div>
           </div>
 
-          {mode === 'ai' && (
+          {mode === 'ai' && isOnline && (
             <div>
               <label className="label">Teacher guidance (optional)</label>
-              <textarea
-                {...register('teacher_prompt')}
-                className="input"
-                rows={2}
-                placeholder="e.g. Focus on word problems, use Kenyan currency"
-              />
+              <textarea {...register('teacher_prompt')} className="input" rows={2}
+                placeholder="e.g. Focus on word problems, use Kenyan currency" />
             </div>
           )}
         </div>
 
-        {/* Assessment items */}
         <div className="card space-y-4 mt-4">
           <div className="flex items-center justify-between">
             <h2 className="font-semibold text-gray-900">2. Assessment items</h2>
-            {mode === 'ai' && items.length === 0 && (
-              <button
-                type="submit"
-                disabled={generating}
-                className="btn-primary"
-              >
+            {mode === 'ai' && items.length === 0 && isOnline && (
+              <button type="submit" disabled={generateMutation.isPending} className="btn-primary">
                 <Sparkles className="h-4 w-4" />
-                {generating ? 'Generating...' : 'Generate with AI'}
+                {generateMutation.isPending ? 'Generating...' : 'Generate with AI'}
               </button>
             )}
           </div>
@@ -258,52 +254,36 @@ export function AssessmentNewPage() {
                   <Trash2 className="h-4 w-4" />
                 </button>
               </div>
-              <textarea
-                value={item.stem}
-                onChange={(e) => updateItem(idx, 'stem', e.target.value)}
-                className="input"
-                rows={2}
-                placeholder="Question stem..."
-              />
-              <input
-                value={item.answer_guide ?? ''}
-                onChange={(e) => updateItem(idx, 'answer_guide', e.target.value)}
-                className="input"
-                placeholder="Answer guide (optional)"
-              />
+              <textarea value={item.stem} onChange={(e) => updateItem(idx, 'stem', e.target.value)}
+                className="input" rows={2} placeholder="Question stem..." />
+              <input value={item.answer_guide ?? ''} onChange={(e) => updateItem(idx, 'answer_guide', e.target.value)}
+                className="input" placeholder="Answer guide (optional)" />
             </div>
           ))}
 
-          {mode === 'manual' || items.length > 0 ? (
+          {(mode === 'manual' || items.length > 0) && (
             <button type="button" onClick={addItem} className="btn-secondary">
               <Plus className="h-4 w-4" /> Add item
             </button>
-          ) : null}
+          )}
 
           {mode === 'manual' && items.length === 0 && (
-            <p className="text-sm text-gray-500 text-center py-4">
-              Add assessment items to create your template
-            </p>
+            <p className="text-sm text-gray-500 text-center py-4">Add assessment items to create your template</p>
           )}
         </div>
 
-        {/* Save */}
         <div className="card mt-4 space-y-4">
           <h2 className="font-semibold text-gray-900">3. Save</h2>
           <div>
             <label className="label">Assessment name</label>
-            <input
-              {...register('name')}
-              className="input"
-              placeholder="e.g. Counting 0-20 check"
-            />
+            <input {...register('name')} className="input" placeholder="e.g. Counting 0-20 check" />
           </div>
           <div>
             <label className="label">Description (optional)</label>
             <textarea {...register('description')} className="input" rows={2} />
           </div>
-          <button type="submit" disabled={loading || items.length === 0} className="btn-primary w-full">
-            {loading ? 'Saving...' : 'Save assessment'}
+          <button type="submit" disabled={saveMutation.isPending || items.length === 0} className="btn-primary w-full">
+            {saveMutation.isPending ? 'Saving...' : 'Save assessment'}
           </button>
         </div>
       </form>

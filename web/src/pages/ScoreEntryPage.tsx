@@ -1,8 +1,10 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, RefreshCw, Cloud, CloudOff } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api';
 import { db } from '@/lib/db';
+import toast from 'react-hot-toast';
 import type { Learner, Assessment, AssessmentRun, Score } from '@mwalimukit/types';
 
 type SyncStatus = 'synced' | 'pending' | 'syncing';
@@ -19,40 +21,52 @@ async function hapticTap() {
 export function ScoreEntryPage() {
   const { classId, assessmentId } = useParams<{ classId: string; assessmentId: string }>();
   const navigate = useNavigate();
-  const [learners, setLearners] = useState<Learner[]>([]);
-  const [assessment, setAssessment] = useState<Assessment | null>(null);
   const [run, setRun] = useState<AssessmentRun | null>(null);
   const [scores, setScores] = useState<Record<string, Record<string, number | null>>>({});
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('synced');
   const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [loading, setLoading] = useState(true);
 
-  // Listen for online/offline
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
+
+    const handleSyncMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'BACKGROUND_SYNC' && event.data?.tag === 'sync-scores') {
+        syncScores();
+      }
+    };
+    navigator.serviceWorker?.addEventListener('message', handleSyncMessage);
+
+    if ('serviceWorker' in navigator && 'SyncManager' in window) {
+      navigator.serviceWorker.ready.then((reg) => {
+        (reg as any).sync?.register('sync-scores').catch(() => {});
+      });
+    }
+
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      navigator.serviceWorker?.removeEventListener('message', handleSyncMessage);
     };
   }, []);
 
-  // Load data
-  useEffect(() => {
-    if (!classId || !assessmentId) return;
-    Promise.all([
-      apiFetch<Learner[]>(`/learners/by-class/${classId}`).catch(() => []),
-      apiFetch<Assessment>(`/assessments/${assessmentId}`).catch(() => null),
-    ]).then(([l, a]) => {
-      setLearners(l);
-      setAssessment(a);
-      setLoading(false);
-    });
-  }, [classId, assessmentId]);
+  const { data: learners = [], isLoading: loadingLearners } = useQuery<Learner[]>({
+    queryKey: ['learners', classId],
+    queryFn: () => apiFetch(`/learners/by-class/${classId}`),
+    enabled: !!classId,
+  });
 
-  // Create run when learners and assessment are loaded
+  const { data: assessment, isLoading: loadingAssessment } = useQuery<Assessment>({
+    queryKey: ['assessment', assessmentId],
+    queryFn: () => apiFetch(`/assessments/${assessmentId}`),
+    enabled: !!assessmentId,
+  });
+
+  const loading = loadingLearners || loadingAssessment;
+
+  // Create run when data is ready
   useEffect(() => {
     if (!assessment || learners.length === 0 || run) return;
 
@@ -65,7 +79,6 @@ export function ScoreEntryPage() {
         setRun(r);
         await loadScores(r.id);
       } catch {
-        // Try to create offline run
         const offlineRun: AssessmentRun = {
           id: crypto.randomUUID(),
           school_id: '',
@@ -85,7 +98,6 @@ export function ScoreEntryPage() {
 
   const loadScores = async (runId: string) => {
     try {
-      // Load from IndexedDB first
       const localScores = await db.scores.where('run_id').equals(runId).toArray();
       if (localScores.length > 0) {
         const scoreMap: Record<string, Record<string, number | null>> = {};
@@ -104,13 +116,11 @@ export function ScoreEntryPage() {
     async (learnerId: string, itemId: string, level: number | null) => {
       if (!run) return;
 
-      // Update local state immediately
       setScores((prev) => ({
         ...prev,
         [learnerId]: { ...(prev[learnerId] ?? {}), [itemId]: level },
       }));
 
-      // Write to IndexedDB
       const scoreId = `${run.id}_${learnerId}_${itemId}`;
       const scoreData: Score & { _dirty: boolean; _synced_at: string | null } = {
         id: scoreId,
@@ -127,7 +137,6 @@ export function ScoreEntryPage() {
       await db.scores.put(scoreData);
       setSyncStatus('pending');
 
-      // Try to sync immediately if online
       if (isOnline) {
         syncScores();
       }
@@ -160,22 +169,28 @@ export function ScoreEntryPage() {
         updated_at: s.updated_at,
       }));
 
-      await apiFetch('/scores/batch', {
+      const result = await apiFetch<{ synced: number; conflicts: number }>('/scores/batch', {
         method: 'POST',
         json: { scores: batch },
       });
 
-      // Mark as synced in IndexedDB
       for (const s of dirtyScores) {
         await db.scores.update(s.id, { _dirty: false, _synced_at: new Date().toISOString() });
       }
+
+      if (result.conflicts > 0) {
+        toast(
+          `${result.conflicts} of your scores were updated by another device — server version kept.`,
+          { icon: '🔄', duration: 6000 },
+        );
+      }
+
       setSyncStatus('synced');
     } catch {
       setSyncStatus('pending');
     }
   }, [run, syncStatus]);
 
-  // Auto-sync when coming back online
   useEffect(() => {
     if (isOnline && syncStatus === 'pending') {
       syncScores();
@@ -203,7 +218,6 @@ export function ScoreEntryPage() {
 
   return (
     <div className="space-y-4">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <button onClick={() => navigate(-1)} className="btn-ghost text-sm">
           <ArrowLeft className="h-4 w-4" /> Back
@@ -215,15 +229,13 @@ export function ScoreEntryPage() {
             ) : (
               <CloudOff className="h-4 w-4 text-amber-500" />
             )}
-            <span
-              className={
-                syncStatus === 'synced'
-                  ? 'text-green-600'
-                  : syncStatus === 'syncing'
-                    ? 'text-blue-600'
-                    : 'text-amber-600'
-              }
-            >
+            <span className={
+              syncStatus === 'synced'
+                ? 'text-green-600'
+                : syncStatus === 'syncing'
+                  ? 'text-blue-600'
+                  : 'text-amber-600'
+            }>
               {syncStatus === 'synced'
                 ? 'Saved'
                 : syncStatus === 'syncing'
@@ -246,9 +258,8 @@ export function ScoreEntryPage() {
         </p>
       </div>
 
-      {/* Score grid */}
       <div className="overflow-x-auto -mx-4 sm:mx-0">
-        <table className="w-full text-sm border-collapse min-w-[600px]">
+        <table className="w-full text-sm border-collapse min-w-[600px]" role="grid" aria-label="Score entry grid">
           <thead>
             <tr className="border-b border-gray-200">
               <th className="sticky left-0 bg-gray-50 text-left py-3 px-4 font-medium text-gray-700 min-w-[160px] z-10">
@@ -278,18 +289,43 @@ export function ScoreEntryPage() {
                       {[1, 2, 3, 4].map((level) => {
                         const current = scores[learner.id]?.[item.id];
                         const isActive = current === level;
+                        const cellKey = `${learner.id}-${item.id}`;
                         return (
                           <button
                             key={level}
+                            data-cell={cellKey}
+                            data-row={learner.id}
+                            data-col={item.id}
                             onClick={() => {
                               hapticTap();
-                              handleScoreChange(
-                                learner.id,
-                                item.id,
-                                isActive ? null : level,
-                              );
+                              handleScoreChange(learner.id, item.id, isActive ? null : level);
                             }}
-                            className={`h-7 w-7 rounded text-xs font-medium transition-all ${
+                            onKeyDown={(e) => {
+                              const cells = Array.from(document.querySelectorAll('[data-cell]'));
+                              const idx = cells.indexOf(e.currentTarget);
+                              if (e.key === 'ArrowRight' && idx < cells.length - 1) {
+                                e.preventDefault();
+                                (cells[idx + 1] as HTMLElement).focus();
+                              } else if (e.key === 'ArrowLeft' && idx > 0) {
+                                e.preventDefault();
+                                (cells[idx - 1] as HTMLElement).focus();
+                              } else if (e.key === 'ArrowDown') {
+                                e.preventDefault();
+                                const nextRow = cells.filter((c) => c.getAttribute('data-row') !== learner.id);
+                                const colIdx = items.findIndex((i) => i.id === item.id);
+                                const next = nextRow[colIdx * 4 + level - 1] || nextRow[0];
+                                if (next) (next as HTMLElement).focus();
+                              } else if (e.key === 'ArrowUp') {
+                                e.preventDefault();
+                                const prevRows = cells.filter((c) => c.getAttribute('data-row') !== learner.id);
+                                const colIdx = items.findIndex((i) => i.id === item.id);
+                                const prev = prevRows[Math.max(0, prevRows.length - (items.length - colIdx) * 4 + level - 1)];
+                                if (prev) (prev as HTMLElement).focus();
+                              }
+                            }}
+                            tabIndex={0}
+                            aria-label={`${learner.full_name}, Item ${items.findIndex((i) => i.id === item.id) + 1}, Level ${level}${isActive ? ', selected' : ''}`}
+                            className={`h-7 w-7 rounded text-xs font-medium transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${
                               isActive
                                 ? level === 1
                                   ? 'bg-red-100 text-red-700 ring-2 ring-red-300'

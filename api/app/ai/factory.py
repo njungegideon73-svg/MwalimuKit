@@ -11,4 +11,7 @@ def get_provider() -> AIProvider:
     if provider == "openai" and settings.ai_api_key:
         from app.ai.openai_provider import OpenAIProvider
         return OpenAIProvider(api_key=settings.ai_api_key, model=settings.ai_model)
+    if provider == "anthropic" and settings.ai_api_key:
+        from app.ai.anthropic_provider import AnthropicProvider
+        return AnthropicProvider(api_key=settings.ai_api_key, model=settings.ai_model)
     return MockProvider()

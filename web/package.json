@@ -7,6 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "lint": "eslint src",
     "typecheck": "tsc --noEmit"
   },
@@ -21,6 +23,7 @@
     "@mwalimukit/curriculum": "*",
     "@mwalimukit/rubrics": "*",
     "@mwalimukit/types": "*",
+    "@tanstack/react-query": "^5.101.4",
     "dexie": "^4.0.4",
     "dexie-react-hooks": "^1.1.7",
     "lucide-react": "^0.441.0",
@@ -33,16 +36,21 @@
     "zustand": "^4.5.5"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.5.0",
+    "@testing-library/react": "^16.0.1",
+    "@testing-library/user-event": "^14.5.2",
     "@types/react": "^18.3.5",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",
     "autoprefixer": "^10.4.20",
     "eslint": "^9.10.0",
     "eslint-plugin-react-hooks": "^5.1.0-rc.0",
+    "jsdom": "^25.0.1",
     "postcss": "^8.4.45",
     "tailwindcss": "^3.4.10",
     "typescript": "^5.5.4",
     "vite": "^5.4.3",
-    "vite-plugin-pwa": "^0.20.1"
+    "vite-plugin-pwa": "^0.20.1",
+    "vitest": "^2.0.5"
   }
 }

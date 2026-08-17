@@ -33,6 +33,12 @@ class LearnerBulkIn(BaseModel):
     lines: list[str] = Field(min_length=1)
 
 
+class LearnerUpdate(BaseModel):
+    full_name: str = Field(min_length=1, max_length=120)
+    admission_no: str | None = None
+    gender: str | None = None
+
+
 class LearnerOut(BaseModel):
     id: UUID
     school_id: UUID

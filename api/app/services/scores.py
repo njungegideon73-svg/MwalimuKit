@@ -14,6 +14,7 @@ from app.schemas.run_score import ScoreBatchIn, ScoreBatchResult, ScoreIn
 
 async def upsert_scores(db: AsyncSession, school_id, batch: ScoreBatchIn) -> ScoreBatchResult:
     accepted = 0
+    conflicts = 0
     rejected: list[dict] = []
 
     run_ids = {s.run_id for s in batch.scores}
@@ -36,6 +37,24 @@ async def upsert_scores(db: AsyncSession, school_id, batch: ScoreBatchIn) -> Sco
             continue
         try:
             updated_at = datetime.fromisoformat(s.updated_at.replace("Z", "+00:00"))
+
+            # Check for conflict: does a newer version already exist?
+            existing = (
+                await db.execute(
+                    select(Score).where(
+                        Score.run_id == s.run_id,
+                        Score.learner_id == s.learner_id,
+                        Score.item_id == s.item_id,
+                    )
+                )
+            ).scalar_one_or_none()
+
+            if existing and existing.updated_at > updated_at:
+                conflicts += 1
+                # Server wins — skip this write
+                accepted += 1
+                continue
+
             stmt = (
                 pg_insert(Score)
                 .values(
@@ -58,4 +77,4 @@ async def upsert_scores(db: AsyncSession, school_id, batch: ScoreBatchIn) -> Sco
             rejected.append({"id": str(s.id), "reason": str(exc)})
 
     await db.commit()
-    return ScoreBatchResult(accepted=accepted, rejected=rejected)
+    return ScoreBatchResult(accepted=accepted, conflicts=conflicts, rejected=rejected)

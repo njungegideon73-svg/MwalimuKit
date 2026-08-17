@@ -1,13 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Users, BookOpen } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api';
 import { getCurriculum } from '@/lib/curriculum';
 import toast from 'react-hot-toast';
-import type { SchoolClass, LearningArea } from '@mwalimukit/types';
+import type { SchoolClass } from '@mwalimukit/types';
 
 const classSchema = z.object({
   name: z.string().min(1, 'Class name is required'),
@@ -16,40 +17,43 @@ const classSchema = z.object({
 type ClassFormData = z.infer<typeof classSchema>;
 
 export function ClassesPage() {
-  const [classes, setClasses] = useState<SchoolClass[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [showNew, setShowNew] = useState(false);
-  const [learningAreas, setLearningAreas] = useState<LearningArea[]>([]);
   const [selectedAreas, setSelectedAreas] = useState<string[]>([]);
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<ClassFormData>({
-    resolver: zodResolver(classSchema),
+  const { data: classes = [], isLoading } = useQuery<SchoolClass[]>({
+    queryKey: ['classes'],
+    queryFn: () => apiFetch('/classes'),
   });
 
-  useEffect(() => {
-    apiFetch<SchoolClass[]>('/classes')
-      .then(setClasses)
-      .catch(() => toast.error('Failed to load classes'))
-      .finally(() => setLoading(false));
+  const { data: learningAreas = [] } = useQuery({
+    queryKey: ['curriculum', 'learning_areas'],
+    queryFn: async () => {
+      const c = await getCurriculum();
+      return c.learning_areas;
+    },
+    staleTime: 5 * 60_000,
+  });
 
-    getCurriculum().then((c) => setLearningAreas(c.learning_areas));
-  }, []);
-
-  const onCreateClass = async (data: ClassFormData) => {
-    try {
-      const result = await apiFetch<SchoolClass>('/classes', {
+  const createMutation = useMutation({
+    mutationFn: (data: ClassFormData) =>
+      apiFetch<SchoolClass>('/classes', {
         method: 'POST',
         json: { ...data, learning_area_codes: selectedAreas },
-      });
-      setClasses([result, ...classes]);
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['classes'] });
       setShowNew(false);
       reset();
       setSelectedAreas([]);
       toast.success('Class created');
-    } catch {
-      toast.error('Failed to create class');
-    }
-  };
+    },
+    onError: () => toast.error('Failed to create class'),
+  });
+
+  const { register, handleSubmit, reset, formState: { errors } } = useForm<ClassFormData>({
+    resolver: zodResolver(classSchema),
+  });
 
   return (
     <div className="space-y-6">
@@ -64,7 +68,7 @@ export function ClassesPage() {
       </div>
 
       {showNew && (
-        <form onSubmit={handleSubmit(onCreateClass)} className="card space-y-4">
+        <form onSubmit={handleSubmit((data) => createMutation.mutate(data))} className="card space-y-4">
           <h2 className="font-semibold text-gray-900">New class</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
@@ -88,31 +92,26 @@ export function ClassesPage() {
             <div className="flex flex-wrap gap-2">
               {learningAreas.map((la) => (
                 <label key={la.code} className="flex items-center gap-1.5 text-sm cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={selectedAreas.includes(la.code)}
-                    onChange={(e) => {
-                      setSelectedAreas(
-                        e.target.checked
-                          ? [...selectedAreas, la.code]
-                          : selectedAreas.filter((c) => c !== la.code),
-                      );
-                    }}
-                    className="accent-primary-500"
-                  />
+                  <input type="checkbox" checked={selectedAreas.includes(la.code)}
+                    onChange={(e) => setSelectedAreas(e.target.checked
+                      ? [...selectedAreas, la.code]
+                      : selectedAreas.filter((c) => c !== la.code))}
+                    className="accent-primary-500" />
                   {la.name}
                 </label>
               ))}
             </div>
           </div>
           <div className="flex gap-3">
-            <button type="submit" className="btn-primary">Create class</button>
+            <button type="submit" disabled={createMutation.isPending} className="btn-primary">
+              {createMutation.isPending ? 'Creating...' : 'Create class'}
+            </button>
             <button type="button" onClick={() => setShowNew(false)} className="btn-secondary">Cancel</button>
           </div>
         </form>
       )}
 
-      {loading ? (
+      {isLoading ? (
         <div className="space-y-3 animate-pulse">
           {[...Array(3)].map((_, i) => <div key={i} className="h-20 bg-gray-200 rounded-xl" />)}
         </div>
@@ -127,11 +126,8 @@ export function ClassesPage() {
       ) : (
         <div className="space-y-2">
           {classes.map((c) => (
-            <Link
-              key={c.id}
-              to={`/classes/${c.id}`}
-              className="flex items-center justify-between rounded-xl bg-white border border-gray-200 px-4 py-3 hover:border-primary-300 transition-colors"
-            >
+            <Link key={c.id} to={`/classes/${c.id}`}
+              className="flex items-center justify-between rounded-xl bg-white border border-gray-200 px-4 py-3 hover:border-primary-300 transition-colors">
               <div className="flex items-center gap-3">
                 <div className="h-10 w-10 rounded-lg bg-blue-50 flex items-center justify-center">
                   <BookOpen className="h-5 w-5 text-blue-600" />
@@ -141,9 +137,7 @@ export function ClassesPage() {
                   <p className="text-sm text-gray-500">{c.grade_level}</p>
                 </div>
               </div>
-              <span className="text-sm text-gray-400">
-                {new Date(c.created_at).toLocaleDateString()}
-              </span>
+              <span className="text-sm text-gray-400">{new Date(c.created_at).toLocaleDateString()}</span>
             </Link>
           ))}
         </div>

@@ -1,26 +1,24 @@
-import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ClipboardList, Users, Plus, BookOpen } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
 import type { Assessment, SchoolClass } from '@mwalimukit/types';
 
 export function DashboardPage() {
   const user = useAuthStore((s) => s.user);
-  const [assessments, setAssessments] = useState<Assessment[]>([]);
-  const [classes, setClasses] = useState<SchoolClass[]>([]);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    Promise.all([
-      apiFetch<Assessment[]>('/assessments').catch(() => []),
-      apiFetch<SchoolClass[]>('/classes').catch(() => []),
-    ]).then(([a, c]) => {
-      setAssessments(a);
-      setClasses(c);
-      setLoading(false);
-    });
-  }, []);
+  const { data: assessments = [], isLoading: loadingAssessments } = useQuery<Assessment[]>({
+    queryKey: ['assessments'],
+    queryFn: () => apiFetch('/assessments'),
+  });
+
+  const { data: classes = [], isLoading: loadingClasses } = useQuery<SchoolClass[]>({
+    queryKey: ['classes'],
+    queryFn: () => apiFetch('/classes'),
+  });
+
+  const loading = loadingAssessments || loadingClasses;
 
   if (loading) {
     return (

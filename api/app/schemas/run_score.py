@@ -38,4 +38,5 @@ class ScoreBatchIn(BaseModel):
 
 class ScoreBatchResult(BaseModel):
     accepted: int
+    conflicts: int = 0
     rejected: list[dict]

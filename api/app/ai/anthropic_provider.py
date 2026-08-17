@@ -1,26 +1,23 @@
-"""OpenAI-backed provider."""
+"""Anthropic-backed provider."""
 from __future__ import annotations
 
 import json
-import structlog
 
-from openai import AsyncOpenAI
+from anthropic import AsyncAnthropic
 
 from app.ai.provider import (
     GeneratedAssessment, build_system_prompt, build_user_prompt,
 )
 
-log = structlog.get_logger(__name__)
 
-
-class OpenAIProvider:
+class AnthropicProvider:
     def __init__(self, api_key: str, model: str) -> None:
-        self._client = AsyncOpenAI(api_key=api_key)
+        self._client = AsyncAnthropic(api_key=api_key)
         self._model = model
 
     @property
     def name(self) -> str:
-        return "openai"
+        return "anthropic"
 
     @property
     def model(self) -> str:
@@ -44,28 +41,14 @@ class OpenAIProvider:
             teacher_prompt=teacher_prompt,
             item_count=item_count,
         )
-        resp = await self._client.chat.completions.create(
+        resp = await self._client.messages.create(
             model=self._model,
-            messages=[
-                {"role": "system", "content": build_system_prompt()},
-                {"role": "user", "content": prompt},
-            ],
-            response_format={"type": "json_object"},
-            temperature=0.4,
+            max_tokens=4096,
+            system=build_system_prompt(),
+            messages=[{"role": "user", "content": prompt}],
         )
-        text = resp.choices[0].message.content or "{}"
+        text = resp.content[0].text if resp.content else "{}"
         data = json.loads(text)
-
-        if resp.usage:
-            log.info(
-                "ai.generate.completed",
-                provider=self.name,
-                model=self._model,
-                prompt_tokens=resp.usage.prompt_tokens,
-                completion_tokens=resp.usage.completion_tokens,
-                total_tokens=resp.usage.total_tokens,
-            )
-
         return GeneratedAssessment(
             rubric=data.get("rubric", {}),
             items=data.get("items", []),

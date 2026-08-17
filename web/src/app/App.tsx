@@ -1,6 +1,9 @@
 import { useEffect } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '@/lib/auth-store';
+import { useFeatureFlags } from '@/lib/feature-flags';
+import { apiFetch } from '@/lib/api';
 import { LoginPage } from '@/pages/LoginPage';
 import { SignupPage } from '@/pages/SignupPage';
 import { DashboardPage } from '@/pages/DashboardPage';
@@ -11,6 +14,8 @@ import { ClassesPage } from '@/pages/ClassesPage';
 import { ClassDetailPage } from '@/pages/ClassDetailPage';
 import { ScoreEntryPage } from '@/pages/ScoreEntryPage';
 import { SettingsPage } from '@/pages/SettingsPage';
+import { PrivacyPolicyPage } from '@/pages/PrivacyPolicyPage';
+import { AITransparencyPage } from '@/pages/AITransparencyPage';
 import { Layout } from '@/components/Layout';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 
@@ -49,10 +54,23 @@ function CapacitorBackButton() {
 export default function App() {
   const hydrate = useAuthStore((s) => s.hydrate);
   const isLoading = useAuthStore((s) => s.isLoading);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const setFlags = useFeatureFlags((s) => s.setFlags);
 
   useEffect(() => {
     hydrate();
   }, [hydrate]);
+
+  const { data: flags } = useQuery({
+    queryKey: ['feature-flags'],
+    queryFn: () => apiFetch('/feature-flags'),
+    enabled: isAuthenticated,
+    staleTime: 5 * 60_000,
+  });
+
+  useEffect(() => {
+    if (flags) setFlags(flags as any);
+  }, [flags, setFlags]);
 
   if (isLoading) {
     return (
@@ -82,6 +100,8 @@ export default function App() {
                 <Route path="/classes/:id" element={<ClassDetailPage />} />
                 <Route path="/classes/:classId/scores/:assessmentId" element={<ScoreEntryPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/privacy" element={<PrivacyPolicyPage />} />
+                <Route path="/ai-transparency" element={<AITransparencyPage />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </Layout>

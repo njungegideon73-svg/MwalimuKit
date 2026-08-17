@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Copy, Trash2, Play, Heart } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api';
 import toast from 'react-hot-toast';
 import type { Assessment } from '@mwalimukit/types';
@@ -8,42 +8,35 @@ import type { Assessment } from '@mwalimukit/types';
 export function AssessmentDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [assessment, setAssessment] = useState<Assessment | null>(null);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    if (!id) return;
-    apiFetch<Assessment>(`/assessments/${id}`)
-      .then(setAssessment)
-      .catch(() => toast.error('Assessment not found'))
-      .finally(() => setLoading(false));
-  }, [id]);
+  const { data: assessment, isLoading } = useQuery<Assessment>({
+    queryKey: ['assessment', id],
+    queryFn: () => apiFetch(`/assessments/${id}`),
+    enabled: !!id,
+  });
 
-  const handleDuplicate = async () => {
-    if (!id) return;
-    try {
-      const result = await apiFetch<{ id: string }>(`/assessments/${id}/duplicate`, {
-        method: 'POST',
-      });
+  const duplicateMutation = useMutation({
+    mutationFn: () => apiFetch<{ id: string }>(`/assessments/${id}/duplicate`, { method: 'POST' }),
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['assessments'] });
       toast.success('Assessment duplicated');
       navigate(`/assessments/${result.id}`);
-    } catch {
-      toast.error('Failed to duplicate');
-    }
-  };
+    },
+    onError: () => toast.error('Failed to duplicate'),
+  });
 
-  const handleDelete = async () => {
-    if (!id || !confirm('Delete this assessment?')) return;
-    try {
-      await apiFetch(`/assessments/${id}`, { method: 'DELETE' });
+  const deleteMutation = useMutation({
+    mutationFn: () => apiFetch(`/assessments/${id}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['assessments'] });
       toast.success('Deleted');
       navigate('/assessments');
-    } catch {
-      toast.error('Failed to delete');
-    }
-  };
+    },
+    onError: () => toast.error('Failed to delete'),
+  });
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="space-y-4 animate-pulse max-w-3xl mx-auto">
         <div className="h-8 w-32 bg-gray-200 rounded" />
@@ -84,16 +77,18 @@ export function AssessmentDetailPage() {
           </div>
         </div>
         <div className="flex gap-2">
-          <button onClick={handleDuplicate} className="btn-secondary text-sm">
-            <Copy className="h-4 w-4" /> Duplicate
+          <button onClick={() => duplicateMutation.mutate()} disabled={duplicateMutation.isPending}
+            className="btn-secondary text-sm">
+            <Copy className="h-4 w-4" /> {duplicateMutation.isPending ? 'Copying...' : 'Duplicate'}
           </button>
-          <button onClick={handleDelete} className="btn-ghost text-sm text-red-600 hover:bg-red-50">
+          <button onClick={() => { if (confirm('Delete this assessment?')) deleteMutation.mutate(); }}
+            disabled={deleteMutation.isPending}
+            className="btn-ghost text-sm text-red-600 hover:bg-red-50">
             <Trash2 className="h-4 w-4" />
           </button>
         </div>
       </div>
 
-      {/* Items */}
       <div className="card">
         <h2 className="font-semibold text-gray-900 mb-4">Assessment items ({assessment.items.length})</h2>
         <div className="space-y-4">
@@ -117,7 +112,6 @@ export function AssessmentDetailPage() {
         </div>
       </div>
 
-      {/* Rubric */}
       <div className="card">
         <h2 className="font-semibold text-gray-900 mb-4">Rubric</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -137,7 +131,6 @@ export function AssessmentDetailPage() {
         </div>
       </div>
 
-      {/* Run action */}
       <div className="card">
         <Link to={`/classes`} className="btn-primary w-full">
           <Play className="h-4 w-4" /> Run against a class

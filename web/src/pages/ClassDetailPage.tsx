@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Plus, Upload, Play } from 'lucide-react';
+import { ArrowLeft, Plus, Upload, Play, Pencil, Trash2, X, Check } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api';
 import toast from 'react-hot-toast';
 import type { SchoolClass, Learner, Assessment } from '@mwalimukit/types';
@@ -8,63 +9,90 @@ import type { SchoolClass, Learner, Assessment } from '@mwalimukit/types';
 export function ClassDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [cls, setCls] = useState<SchoolClass | null>(null);
-  const [learners, setLearners] = useState<Learner[]>([]);
-  const [assessments, setAssessments] = useState<Assessment[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [showAddLearner, setShowAddLearner] = useState(false);
   const [showBulkAdd, setShowBulkAdd] = useState(false);
   const [newName, setNewName] = useState('');
   const [newAdmNo, setNewAdmNo] = useState('');
   const [bulkText, setBulkText] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editAdmNo, setEditAdmNo] = useState('');
 
-  useEffect(() => {
-    if (!id) return;
-    Promise.all([
-      apiFetch<SchoolClass>(`/classes/${id}`).catch(() => null),
-      apiFetch<Learner[]>(`/learners/by-class/${id}`).catch(() => []),
-      apiFetch<Assessment[]>('/assessments').catch(() => []),
-    ]).then(([c, l, a]) => {
-      setCls(c);
-      setLearners(l);
-      setAssessments(a);
-      setLoading(false);
-    });
-  }, [id]);
+  const { data: cls, isLoading: loadingClass } = useQuery<SchoolClass>({
+    queryKey: ['class', id],
+    queryFn: () => apiFetch(`/classes/${id}`),
+    enabled: !!id,
+  });
 
-  const addLearner = async () => {
-    if (!newName.trim() || !id) return;
-    try {
-      const result = await apiFetch<Learner>('/learners', {
+  const { data: learners = [], isLoading: loadingLearners } = useQuery<Learner[]>({
+    queryKey: ['learners', id],
+    queryFn: () => apiFetch(`/learners/by-class/${id}`),
+    enabled: !!id,
+  });
+
+  const { data: assessments = [] } = useQuery<Assessment[]>({
+    queryKey: ['assessments'],
+    queryFn: () => apiFetch('/assessments'),
+  });
+
+  const addMutation = useMutation({
+    mutationFn: () =>
+      apiFetch<Learner>('/learners', {
         method: 'POST',
         json: { class_id: id, full_name: newName.trim(), admission_no: newAdmNo || null },
-      });
-      setLearners([...learners, result]);
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['learners', id] });
       setNewName('');
       setNewAdmNo('');
       setShowAddLearner(false);
       toast.success('Learner added');
-    } catch {
-      toast.error('Failed to add learner');
-    }
-  };
+    },
+    onError: () => toast.error('Failed to add learner'),
+  });
 
-  const bulkAdd = async () => {
-    if (!bulkText.trim() || !id) return;
-    const lines = bulkText.split('\n').filter((l) => l.trim());
-    try {
-      const result = await apiFetch<Learner[]>('/learners/bulk', {
+  const bulkMutation = useMutation({
+    mutationFn: () => {
+      const lines = bulkText.split('\n').filter((l) => l.trim());
+      return apiFetch<Learner[]>('/learners/bulk', {
         method: 'POST',
         json: { class_id: id, lines },
       });
-      setLearners([...learners, ...result]);
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['learners', id] });
       setBulkText('');
       setShowBulkAdd(false);
       toast.success(`${result.length} learners added`);
-    } catch {
-      toast.error('Failed to bulk add');
-    }
-  };
+    },
+    onError: () => toast.error('Failed to bulk add'),
+  });
+
+  const editMutation = useMutation({
+    mutationFn: () =>
+      apiFetch<Learner>(`/learners/${editingId}`, {
+        method: 'PATCH',
+        json: { full_name: editName.trim(), admission_no: editAdmNo || null },
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['learners', id] });
+      setEditingId(null);
+      toast.success('Learner updated');
+    },
+    onError: () => toast.error('Failed to update learner'),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (learnerId: string) => apiFetch(`/learners/${learnerId}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['learners', id] });
+      toast.success('Learner removed');
+    },
+    onError: () => toast.error('Failed to delete learner'),
+  });
+
+  const loading = loadingClass || loadingLearners;
 
   if (loading) {
     return (
@@ -110,34 +138,23 @@ export function ClassDetailPage() {
 
         {showAddLearner && (
           <div className="flex gap-2 mb-4">
-            <input
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              className="input flex-1"
-              placeholder="Full name"
-            />
-            <input
-              value={newAdmNo}
-              onChange={(e) => setNewAdmNo(e.target.value)}
-              className="input w-32"
-              placeholder="Adm. no"
-            />
-            <button onClick={addLearner} className="btn-primary text-sm">Add</button>
+            <input value={newName} onChange={(e) => setNewName(e.target.value)}
+              className="input flex-1" placeholder="Full name" />
+            <input value={newAdmNo} onChange={(e) => setNewAdmNo(e.target.value)}
+              className="input w-32" placeholder="Adm. no" />
+            <button onClick={() => addMutation.mutate()} disabled={addMutation.isPending}
+              className="btn-primary text-sm">Add</button>
             <button onClick={() => setShowAddLearner(false)} className="btn-ghost text-sm">Cancel</button>
           </div>
         )}
 
         {showBulkAdd && (
           <div className="mb-4 space-y-2">
-            <textarea
-              value={bulkText}
-              onChange={(e) => setBulkText(e.target.value)}
-              className="input"
-              rows={5}
-              placeholder="One name per line, or: name,admission_no"
-            />
+            <textarea value={bulkText} onChange={(e) => setBulkText(e.target.value)}
+              className="input" rows={5} placeholder="One name per line, or: name,admission_no" />
             <div className="flex gap-2">
-              <button onClick={bulkAdd} className="btn-primary text-sm">Add all</button>
+              <button onClick={() => bulkMutation.mutate()} disabled={bulkMutation.isPending}
+                className="btn-primary text-sm">Add all</button>
               <button onClick={() => setShowBulkAdd(false)} className="btn-secondary text-sm">Cancel</button>
             </div>
           </div>
@@ -149,10 +166,39 @@ export function ClassDetailPage() {
           <div className="divide-y divide-gray-100">
             {learners.map((l) => (
               <div key={l.id} className="flex items-center justify-between py-2.5">
-                <div>
-                  <p className="font-medium text-sm text-gray-900">{l.full_name}</p>
-                  {l.admission_no && <p className="text-xs text-gray-500">Adm: {l.admission_no}</p>}
-                </div>
+                {editingId === l.id ? (
+                  <div className="flex items-center gap-2 flex-1">
+                    <input value={editName} onChange={(e) => setEditName(e.target.value)}
+                      className="input flex-1" placeholder="Full name" />
+                    <input value={editAdmNo} onChange={(e) => setEditAdmNo(e.target.value)}
+                      className="input w-28" placeholder="Adm. no" />
+                    <button onClick={() => editMutation.mutate()} className="p-1.5 text-green-600 hover:text-green-700">
+                      <Check className="h-4 w-4" />
+                    </button>
+                    <button onClick={() => setEditingId(null)} className="p-1.5 text-gray-400 hover:text-gray-600">
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div>
+                      <p className="font-medium text-sm text-gray-900">{l.full_name}</p>
+                      {l.admission_no && <p className="text-xs text-gray-500">Adm: {l.admission_no}</p>}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => { setEditingId(l.id); setEditName(l.full_name); setEditAdmNo(l.admission_no ?? ''); }}
+                        className="p-1.5 text-gray-400 hover:text-primary-600 transition-colors"
+                        aria-label={`Edit ${l.full_name}`}>
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                      <button onClick={() => { if (confirm('Delete this learner? Their historical scores will be preserved.')) deleteMutation.mutate(l.id); }}
+                        className="p-1.5 text-gray-400 hover:text-red-600 transition-colors"
+                        aria-label={`Delete ${l.full_name}`}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             ))}
           </div>
@@ -167,11 +213,8 @@ export function ClassDetailPage() {
         ) : (
           <div className="space-y-2">
             {assessments.map((a) => (
-              <Link
-                key={a.id}
-                to={`/classes/${id}/scores/${a.id}`}
-                className="flex items-center justify-between rounded-lg border border-gray-200 px-4 py-3 hover:border-primary-300 transition-colors"
-              >
+              <Link key={a.id} to={`/classes/${id}/scores/${a.id}`}
+                className="flex items-center justify-between rounded-lg border border-gray-200 px-4 py-3 hover:border-primary-300 transition-colors">
                 <div>
                   <p className="font-medium text-sm text-gray-900">{a.name}</p>
                   <div className="flex items-center gap-2 mt-1">

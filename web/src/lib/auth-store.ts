@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import type { User } from '@mwalimukit/types';
 import { apiFetch, saveTokens, clearTokens, getTokens } from '@/lib/api';
+import { db } from '@/lib/db';
+import { invalidateCurriculumCache } from '@/lib/curriculum';
 
 interface AuthState {
   user: User | null;
@@ -13,7 +15,7 @@ interface AuthState {
     password: string;
     school_code: string;
   }) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   hydrate: () => Promise<void>;
 }
 
@@ -40,8 +42,10 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ user: res.user, isAuthenticated: true });
   },
 
-  logout: () => {
+  logout: async () => {
     clearTokens();
+    invalidateCurriculumCache();
+    await db.delete();
     set({ user: null, isAuthenticated: false });
   },
 

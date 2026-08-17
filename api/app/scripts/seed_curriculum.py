@@ -1,4 +1,4 @@
-"""Seed the curriculum catalogue from the in-Python mirror of the TS catalogue.
+"""Seed the curriculum catalogue and a demo school.
 
 The TypeScript catalogue in packages/shared/curriculum/data/catalogue.ts is the
 canonical source. This module is a hand-maintained mirror so the seed script
@@ -14,7 +14,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import SessionLocal
+from app.core.security import hash_password
 from app.models.curriculum import CurriculumLevel, LearningArea, Strand, SubStrand
+from app.models.school import School
+from app.models.user import User, UserRole
 
 
 CATALOGUE: dict = {
@@ -188,10 +191,42 @@ async def upsert_all(db: AsyncSession) -> None:
     await db.commit()
 
 
+async def seed_demo_school(db: AsyncSession) -> None:
+    """Create a demo school and teacher if they don't exist."""
+    existing = (await db.execute(select(School).where(School.code == "DEMO01"))).scalar_one_or_none()
+    if existing:
+        return
+
+    school = School(
+        id=uuid4(),
+        name="Demo Primary School",
+        code="DEMO01",
+        county="Nairobi",
+        level="primary",
+        settings={},
+    )
+    db.add(school)
+    await db.flush()
+
+    teacher = User(
+        id=uuid4(),
+        school_id=school.id,
+        email="teacher@demo.mwalimukit.go.ke",
+        full_name="Demo Teacher",
+        role=UserRole.teacher,
+        password_hash=hash_password("password123"),
+        is_active=True,
+    )
+    db.add(teacher)
+    await db.commit()
+    print(f"Demo school created: code=DEMO01, teacher=teacher@demo.mwalimukit.go.ke / password123")
+
+
 async def main() -> None:
     async with SessionLocal() as db:
         await upsert_all(db)
-    print("Curriculum seeded.")
+        await seed_demo_school(db)
+    print("Seeding complete.")
 
 
 if __name__ == "__main__":

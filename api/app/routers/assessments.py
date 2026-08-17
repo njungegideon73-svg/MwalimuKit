@@ -2,13 +2,14 @@
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.factory import get_provider
 from app.core.db import get_db
 from app.core.deps import CurrentUser
+from app.core.rate_limit import rate_limit_generate
 from app.models.assessment import Assessment, AssessmentSource
 from app.models.curriculum import LearningArea
 from app.schemas.assessment import (
@@ -20,7 +21,12 @@ router = APIRouter()
 
 
 @router.post("/generate", response_model=GenerateAssessmentResponse)
-async def generate(req: GenerateAssessmentRequest, user: CurrentUser) -> GenerateAssessmentResponse:
+async def generate(
+    request: Request,
+    req: GenerateAssessmentRequest,
+    user: CurrentUser,
+    _rate: None = Depends(rate_limit_generate),
+) -> GenerateAssessmentResponse:
     provider = get_provider()
     result = await provider.generate_assessment(
         learning_area=req.learning_area_code,
