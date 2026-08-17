@@ -120,8 +120,7 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.TIMESTAMP(timezone=True), server_default=sa.func.now(), nullable=False),
     )
 
-    user_role = sa.Enum("teacher", "school_admin", "super_admin", name="user_role")
-    user_role.create(op.get_bind(), checkfirst=True)
+    op.execute("CREATE TYPE IF NOT EXISTS user_role AS ENUM ('teacher', 'school_admin', 'super_admin')")
 
     op.create_table(
         "users",
@@ -129,7 +128,7 @@ def upgrade() -> None:
         sa.Column("school_id", sa.dialects.postgresql.UUID(as_uuid=True), sa.ForeignKey("schools.id"), nullable=False),
         sa.Column("email", sa.dialects.postgresql.CITEXT(), nullable=False, unique=True),
         sa.Column("full_name", sa.Text(), nullable=False),
-        sa.Column("role", user_role, nullable=False, server_default="teacher"),
+        sa.Column("role", sa.Enum("teacher", "school_admin", "super_admin", name="user_role"), nullable=False, server_default="teacher"),
         sa.Column("password_hash", sa.Text(), nullable=False),
         sa.Column("last_login_at", sa.TIMESTAMP(timezone=True), nullable=True),
         sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.true()),
@@ -137,15 +136,14 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.TIMESTAMP(timezone=True), server_default=sa.func.now(), nullable=False),
     )
 
-    level_enum = sa.Enum("lower_primary", "upper_primary", "jss", name="curriculum_level")
-    level_enum.create(op.get_bind(), checkfirst=True)
+    op.execute("CREATE TYPE IF NOT EXISTS curriculum_level AS ENUM ('lower_primary', 'upper_primary', 'jss')")
 
     op.create_table(
         "learning_areas",
         sa.Column("id", sa.dialects.postgresql.UUID(as_uuid=True), primary_key=True),
         sa.Column("code", sa.Text(), nullable=False, unique=True),
         sa.Column("name", sa.Text(), nullable=False),
-        sa.Column("level", level_enum, nullable=False),
+        sa.Column("level", sa.Enum("lower_primary", "upper_primary", "jss", name="curriculum_level"), nullable=False),
         sa.Column("sort_order", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("created_at", sa.TIMESTAMP(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column("updated_at", sa.TIMESTAMP(timezone=True), server_default=sa.func.now(), nullable=False),
@@ -171,8 +169,7 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.TIMESTAMP(timezone=True), server_default=sa.func.now(), nullable=False),
     )
 
-    source_enum = sa.Enum("ai", "manual", "template", name="assessment_source")
-    source_enum.create(op.get_bind(), checkfirst=True)
+    op.execute("CREATE TYPE IF NOT EXISTS assessment_source AS ENUM ('ai', 'manual', 'template')")
 
     op.create_table(
         "assessments",
@@ -182,7 +179,7 @@ def upgrade() -> None:
         sa.Column("learning_area_id", sa.dialects.postgresql.UUID(as_uuid=True), sa.ForeignKey("learning_areas.id"), nullable=False),
         sa.Column("name", sa.Text(), nullable=False),
         sa.Column("description", sa.Text(), nullable=True),
-        sa.Column("source", source_enum, nullable=False, server_default="manual"),
+        sa.Column("source", sa.Enum("ai", "manual", "template", name="assessment_source"), nullable=False, server_default="manual"),
         sa.Column("rubric", sa.dialects.postgresql.JSONB(), nullable=False, server_default=sa.text("'{}'::jsonb")),
         sa.Column("items", sa.dialects.postgresql.JSONB(), nullable=False, server_default=sa.text("'[]'::jsonb")),
         sa.Column("tags", sa.dialects.postgresql.ARRAY(sa.Text()), nullable=False, server_default=sa.text("'{}'::text[]")),
@@ -266,9 +263,9 @@ def downgrade() -> None:
         "users", "schools",
     ]:
         op.drop_table(t)
-    sa.Enum(name="user_role").drop(op.get_bind(), checkfirst=True)
-    sa.Enum(name="curriculum_level").drop(op.get_bind(), checkfirst=True)
-    sa.Enum(name="assessment_source").drop(op.get_bind(), checkfirst=True)
+    op.execute("DROP TYPE IF EXISTS assessment_source")
+    op.execute("DROP TYPE IF EXISTS curriculum_level")
+    op.execute("DROP TYPE IF EXISTS user_role")
 ''')
 
 
