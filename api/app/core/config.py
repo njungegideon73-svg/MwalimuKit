@@ -1,9 +1,10 @@
 """Centralised settings, loaded from environment variables."""
 from __future__ import annotations
 
+import json
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -31,6 +32,32 @@ class Settings(BaseSettings):
 
     feature_paywall_enabled: bool = Field(default=False, alias="FEATURE_PAYWALL_ENABLED")
     feature_ai_generation_enabled: bool = Field(default=True, alias="FEATURE_AI_GENERATION_ENABLED")
+
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def parse_cors_origins(cls, v: str | list[str]) -> list[str]:
+        if isinstance(v, list):
+            return v
+        if isinstance(v, str):
+            v = v.strip()
+            if not v:
+                return [
+                    "http://localhost:5173",
+                    "http://localhost:3000",
+                    "https://mwalimukit.vercel.app",
+                ]
+            try:
+                parsed = json.loads(v)
+                if isinstance(parsed, list):
+                    return parsed
+            except (json.JSONDecodeError, TypeError):
+                pass
+            return [origin.strip() for origin in v.split(",") if origin.strip()]
+        return [
+            "http://localhost:5173",
+            "http://localhost:3000",
+            "https://mwalimukit.vercel.app",
+        ]
 
 
 @lru_cache(maxsize=1)
