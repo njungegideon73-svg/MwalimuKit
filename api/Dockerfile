@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-COPY pyproject.toml ./
+COPY api/pyproject.toml ./
 RUN pip install --upgrade pip && pip install .
 
 # ── Runtime stage ───────────────────────────
@@ -30,7 +30,7 @@ WORKDIR /app
 
 COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
-COPY . .
+COPY api/ .
 
 RUN chown -R app:app /app
 USER app
