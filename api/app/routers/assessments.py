@@ -1,4 +1,4 @@
-"""Assessment generation + CRUD."""
+"""Assessment generation + CRUD + export."""
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
@@ -17,6 +17,13 @@ from app.schemas.assessment import (
     AssessmentIn, AssessmentOut, AssessmentUpdate,
     GenerateAssessmentRequest, GenerateAssessmentResponse,
 )
+try:
+    from docx import Document
+    from docx.shared import Inches, Pt
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    HAS_DOCX = True
+except ImportError:
+    HAS_DOCX = False
 
 
 router = APIRouter()
@@ -38,6 +45,7 @@ async def generate(
         grade_level=req.grade_level,
         teacher_prompt=req.teacher_prompt,
         item_count=req.item_count,
+        include_diagrams=req.include_diagrams,
     )
 
     history = PromptHistory(
@@ -296,3 +304,131 @@ def _to_out(a: Assessment) -> AssessmentOut:
         updated_at=a.updated_at.isoformat(),
         deleted_at=a.deleted_at.isoformat() if a.deleted_at else None,
     )
+
+
+# ---------------------------------------------------------------------------
+# Assessment export endpoints
+# ---------------------------------------------------------------------------
+
+@router.get("/{assessment_id}/export/pdf")
+async def export_assessment_pdf(
+    assessment_id: UUID,
+    user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+):
+    a = (
+        await db.execute(
+            select(Assessment).where(
+                Assessment.id == assessment_id,
+                Assessment.school_id == user.school_id,
+                Assessment.deleted_at.is_(None),
+            )
+        )
+    ).scalar_one_or_none()
+    if a is None:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+
+    la = (
+        await db.execute(select(LearningArea).where(LearningArea.id == a.learning_area_id))
+    ).scalar_one_or_none()
+    la_name = la.name if la else "Unknown"
+
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=2 * cm, bottomMargin=2 * cm)
+    styles = getSampleStyleSheet()
+    elements: list = []
+
+    title_style = ParagraphStyle("Title2", parent=styles["Title"], fontSize=18, spaceAfter=6)
+    subtitle_style = ParagraphStyle("Sub", parent=styles["Normal"], fontSize=11, spaceAfter=4)
+    body_style = styles["Normal"]
+    small_style = ParagraphStyle("Small", parent=body_style, fontSize=9, spaceAfter=2)
+
+    elements.append(Paragraph(f"Assessment: {a.name}", title_style))
+    elements.append(Paragraph(f"Learning Area: {la_name}", subtitle_style))
+    elements.append(Paragraph(f"Strand: {a.strand_code or '-'}", subtitle_style))
+    elements.append(Paragraph(f"Source: {a.source.value if hasattr(a.source, 'value') else a.source}", subtitle_style))
+    elements.append(Spacer(1, 0.5 * cm))
+
+    for idx, item in enumerate(a.items or [], start=1):
+        elements.append(Paragraph(f"<b>Question {idx}</b>", body_style))
+        elements.append(Paragraph(item.get("stem", ""), body_style))
+        if item.get("diagram_description"):
+            elements.append(Paragraph(
+                f"<b>Diagram / Visual:</b> {item['diagram_description']}",
+                ParagraphStyle("Diagram", parent=body_style, fontSize=10, textColor=colors.HexColor("#555555"), spaceAfter=4)
+            ))
+        elements.append(Paragraph(f"<b>Answer guide:</b> {item.get('answer_guide', '') or 'N/A'}", small_style))
+        elements.append(Spacer(1, 0.3 * cm))
+
+    if a.rubric:
+        elements.append(Spacer(1, 0.3 * cm))
+        elements.append(Paragraph("<b>Rubric</b>", ParagraphStyle("RubricTitle", parent=body_style, fontSize=14, spaceAfter=6)))
+        for level in a.rubric.get("levels", []):
+            elements.append(Paragraph(
+                f"Level {level.get('level')}: <b>{level.get('label', '')}</b> — {level.get('descriptor', '')}",
+                small_style
+            ))
+
+    doc.build(elements)
+    buffer.seek(0)
+    filename = f"assessment-{a.name.replace(' ', '-').lower()}.pdf"
+    return StreamingResponse(buffer, media_type="application/pdf", headers={
+        "Content-Disposition": f"attachment; filename=\"{filename}\""
+    })
+
+
+@router.get("/{assessment_id}/export/docx")
+async def export_assessment_docx(
+    assessment_id: UUID,
+    user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+):
+    if not HAS_DOCX:
+        raise HTTPException(status_code=501, detail="DOCX export is not available on this server")
+
+    a = (
+        await db.execute(
+            select(Assessment).where(
+                Assessment.id == assessment_id,
+                Assessment.school_id == user.school_id,
+                Assessment.deleted_at.is_(None),
+            )
+        )
+    ).scalar_one_or_none()
+    if a is None:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+
+    la = (
+        await db.execute(select(LearningArea).where(LearningArea.id == a.learning_area_id))
+    ).scalar_one_or_none()
+    la_name = la.name if la else "Unknown"
+
+    document = Document()
+    document.add_heading(f"Assessment: {a.name}", level=1)
+    document.add_paragraph(f"Learning Area: {la_name}")
+    document.add_paragraph(f"Strand: {a.strand_code or '-'}")
+    document.add_paragraph(f"Source: {a.source.value if hasattr(a.source, 'value') else a.source}")
+
+    for idx, item in enumerate(a.items or [], start=1):
+        p = document.add_paragraph()
+        p.add_run(f"Question {idx}: ").bold = True
+        p.add_run(item.get("stem", ""))
+        if item.get("diagram_description"):
+            d = document.add_paragraph()
+            d.add_run("Diagram / Visual: ").bold = True
+            d.add_run(item["diagram_description"])
+        document.add_paragraph(f"Answer guide: {item.get('answer_guide', '') or 'N/A'}")
+
+    if a.rubric:
+        document.add_heading("Rubric", level=2)
+        for level in a.rubric.get("levels", []):
+            p = document.add_paragraph(style='List Bullet')
+            p.add_run(f"Level {level.get('level')}: {level.get('label', '')} — {level.get('descriptor', '')}")
+
+    buffer = io.BytesIO()
+    document.save(buffer)
+    buffer.seek(0)
+    filename = f"assessment-{a.name.replace(' ', '-').lower()}.docx"
+    return StreamingResponse(buffer, media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document", headers={
+        "Content-Disposition": f"attachment; filename=\"{filename}\""
+    })

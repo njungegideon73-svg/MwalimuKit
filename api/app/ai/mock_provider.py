@@ -17,9 +17,13 @@ class MockProvider:
         grade_level: str,
         teacher_prompt: str | None = None,
         item_count: int = 5,
+        include_diagrams: bool = False,
     ) -> GeneratedAssessment:
         items: list[dict] = []
         for i in range(1, item_count + 1):
+            diagram_desc = ""
+            if include_diagrams:
+                diagram_desc = f"A simple diagram or chart related to {sub_strand} for {grade_level} learners."
             items.append(
                 {
                     "id": f"itm_{i:02d}",
@@ -31,6 +35,7 @@ class MockProvider:
                     ),
                     "answer_guide": "Edit me.",
                     "max_level": 4,
+                    "diagram_description": diagram_desc,
                 }
             )
         rubric = {

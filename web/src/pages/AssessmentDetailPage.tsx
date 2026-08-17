@@ -1,5 +1,5 @@
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Copy, Trash2, Play, Heart } from 'lucide-react';
+import { ArrowLeft, Copy, Trash2, Play, Heart, Download, FileText } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api';
 import toast from 'react-hot-toast';
@@ -35,6 +35,51 @@ export function AssessmentDetailPage() {
     },
     onError: () => toast.error('Failed to delete'),
   });
+
+  const exportPdf = async () => {
+    if (!id) return;
+    try {
+      const token = (() => { try { const r = localStorage.getItem('mk_auth'); return r ? JSON.parse(r).access_token : ''; } catch { return ''; } })();
+      const res = await fetch(`/api/v1/assessments/${id}/export/pdf`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error('PDF export failed');
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `assessment-${assessment?.name?.replace(/\s+/g, '-').toLowerCase() || id}.pdf`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+      toast.success('PDF downloaded');
+    } catch {
+      toast.error('Failed to export PDF');
+    }
+  };
+
+  const exportDocx = async () => {
+    if (!id) return;
+    try {
+      const token = (() => { try { const r = localStorage.getItem('mk_auth'); return r ? JSON.parse(r).access_token : ''; } catch { return ''; } })();
+      const res = await fetch(`/api/v1/assessments/${id}/export/docx`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        if (res.status === 501) throw new Error('DOCX export not available on this server');
+        throw new Error('DOCX export failed');
+      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `assessment-${assessment?.name?.replace(/\s+/g, '-').toLowerCase() || id}.docx`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+      toast.success('Word document downloaded');
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to export Word document');
+    }
+  };
 
   if (isLoading) {
     return (
@@ -81,6 +126,12 @@ export function AssessmentDetailPage() {
             className="btn-secondary text-sm">
             <Copy className="h-4 w-4" /> {duplicateMutation.isPending ? 'Copying...' : 'Duplicate'}
           </button>
+          <button onClick={exportPdf} className="btn-secondary text-sm">
+            <Download className="h-4 w-4" /> PDF
+          </button>
+          <button onClick={exportDocx} className="btn-secondary text-sm">
+            <FileText className="h-4 w-4" /> Word
+          </button>
           <button onClick={() => { if (confirm('Delete this assessment?')) deleteMutation.mutate(); }}
             disabled={deleteMutation.isPending}
             className="btn-ghost text-sm text-red-600 hover:bg-red-50">
@@ -103,6 +154,11 @@ export function AssessmentDetailPage() {
                   {item.answer_guide && (
                     <p className="text-sm text-gray-500 mt-2">
                       <span className="font-medium">Answer:</span> {item.answer_guide}
+                    </p>
+                  )}
+                  {item.diagram_description && (
+                    <p className="text-sm text-blue-600 mt-2">
+                      <span className="font-medium">Diagram / Visual:</span> {item.diagram_description}
                     </p>
                   )}
                 </div>

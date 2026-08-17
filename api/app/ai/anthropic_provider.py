@@ -32,6 +32,7 @@ class AnthropicProvider:
         grade_level: str,
         teacher_prompt: str | None = None,
         item_count: int = 5,
+        include_diagrams: bool = False,
     ) -> GeneratedAssessment:
         prompt = build_user_prompt(
             learning_area=learning_area,
@@ -40,6 +41,7 @@ class AnthropicProvider:
             grade_level=grade_level,
             teacher_prompt=teacher_prompt,
             item_count=item_count,
+            include_diagrams=include_diagrams,
         )
         resp = await self._client.messages.create(
             model=self._model,

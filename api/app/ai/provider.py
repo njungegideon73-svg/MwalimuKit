@@ -23,6 +23,7 @@ class AIProvider(Protocol):
         grade_level: str,
         teacher_prompt: str | None = None,
         item_count: int = 5,
+        include_diagrams: bool = False,
     ) -> GeneratedAssessment: ...
 
 
@@ -45,8 +46,14 @@ def build_user_prompt(
     grade_level: str,
     teacher_prompt: str | None,
     item_count: int,
+    include_diagrams: bool = False,
 ) -> str:
     extra = f"\nTeacher guidance: {teacher_prompt}" if teacher_prompt else ""
+    diagram_instruction = (
+        "\nFor each item, also provide a 'diagram_description' field: a short, practical description of a diagram, chart, flowchart, or picture that would help learners answer the question (e.g. 'A bar chart showing rainfall in mm for 4 months'). Keep descriptions simple and age-appropriate."
+        if include_diagrams
+        else ""
+    )
     return (
         f"Generate a formative assessment.\n"
         f"Learning area: {learning_area}\n"
@@ -66,7 +73,9 @@ def build_user_prompt(
         '    "criteria": [{"id": "accuracy", "label": "Accuracy of response"}]\n'
         "  },\n"
         '  "items": [\n'
-        '    {"id": "itm_01", "criterion": "accuracy", "stem": "...", "answer_guide": "...", "max_level": 4}\n'
+        '    {"id": "itm_01", "criterion": "accuracy", "stem": "...", "answer_guide": "...", "max_level": 4, "diagram_description": "..."}\n'
         "  ]\n"
         "}"
+        f"{diagram_instruction}\n"
+        "If a diagram is not applicable for an item, use an empty string for diagram_description."
     )

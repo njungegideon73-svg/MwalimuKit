@@ -19,7 +19,7 @@ RUN pip install --no-cache-dir \
     sqlalchemy asyncpg psycopg[binary] alembic redis \
     python-jose passlib[argon2] python-multipart httpx \
     openai anthropic structlog email-validator \
-    reportlab stripe python-dotenv argon2-cffi
+    reportlab stripe python-docx python-dotenv argon2-cffi
 
 # ── Runtime stage ───────────────────────────
 FROM python:3.12-slim

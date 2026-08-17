@@ -29,6 +29,7 @@ class AssessmentItem(BaseModel):
     stem: str
     answer_guide: str | None = None
     max_level: int = 4
+    diagram_description: str | None = None
 
 
 class GenerateAssessmentRequest(BaseModel):
@@ -37,7 +38,8 @@ class GenerateAssessmentRequest(BaseModel):
     sub_strand_codes: list[str] = Field(min_length=1)
     grade_level: str
     teacher_prompt: str | None = None
-    item_count: int = Field(default=5, ge=1, le=10)
+    item_count: int = Field(default=5, ge=1, le=20)
+    include_diagrams: bool = False
 
 
 class GenerateAssessmentResponse(BaseModel):

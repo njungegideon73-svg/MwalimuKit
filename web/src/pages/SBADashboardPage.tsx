@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, ClipboardCheck, BarChart3, FileText, Trash2, ChevronRight } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api';
+import { getCurriculum } from '@/lib/curriculum';
 import toast from 'react-hot-toast';
 import type { SchoolClass, LearningArea } from '@mwalimukit/types';
 
@@ -51,9 +52,20 @@ export function SBADashboardPage() {
   });
 
   const { data: learningAreas = [] } = useQuery<LearningArea[]>({
-    queryKey: ['learning-areas'],
-    queryFn: () => apiFetch('/curriculum/learning-areas'),
+    queryKey: ['curriculum', 'learning_areas'],
+    queryFn: async () => {
+      const c = await getCurriculum();
+      return c.learning_areas;
+    },
+    staleTime: 5 * 60_000,
   });
+
+  const availableLearningAreas = useMemo(() => {
+    if (!selectedClass || !classes.length) return learningAreas;
+    const cls = classes.find((c) => c.id === selectedClass);
+    if (!cls || !cls.learning_area_codes?.length) return learningAreas;
+    return learningAreas.filter((la) => cls.learning_area_codes.includes(la.code));
+  }, [selectedClass, classes, learningAreas]);
 
   const { data: exams = [], isLoading } = useQuery<TermExam[]>({
     queryKey: ['term-exams', filterClass, filterTerm, filterYear],
@@ -131,7 +143,7 @@ export function SBADashboardPage() {
               <label className="label">Subject (Learning Area)</label>
               <select className="input" value={selectedLA} onChange={(e) => setSelectedLA(e.target.value)}>
                 <option value="">Select subject...</option>
-                {learningAreas.map((la) => (
+                {availableLearningAreas.map((la) => (
                   <option key={la.code} value={la.code}>{la.name}</option>
                 ))}
               </select>

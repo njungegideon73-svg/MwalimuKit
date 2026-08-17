@@ -23,6 +23,8 @@ const schema = z.object({
   sub_strand_code: z.string().min(1, 'Select a sub-strand'),
   grade_level: z.string().min(1, 'Enter grade level'),
   teacher_prompt: z.string().optional(),
+  item_count: z.coerce.number().int().min(1).max(20).default(5),
+  include_diagrams: z.boolean().default(false),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -61,7 +63,8 @@ export function AssessmentNewPage() {
           sub_strand_codes: [data.sub_strand_code],
           grade_level: data.grade_level,
           teacher_prompt: data.teacher_prompt,
-          item_count: 5,
+          item_count: data.item_count,
+          include_diagrams: data.include_diagrams,
         },
       }),
     onSuccess: (result) => {
@@ -136,7 +139,7 @@ export function AssessmentNewPage() {
     setItems([...items, {
       id: `itm_${String(items.length + 1).padStart(2, '0')}`,
       criterion: rubric.criteria[0]?.id ?? 'accuracy',
-      stem: '', answer_guide: '', max_level: 4,
+      stem: '', answer_guide: '', max_level: 4, diagram_description: '',
     }]);
   };
 
@@ -238,14 +241,30 @@ export function AssessmentNewPage() {
             </div>
           </div>
 
-          {mode === 'ai' && isOnline && (
-            <div>
-              <label className="label">Teacher guidance (optional)</label>
-              <textarea {...register('teacher_prompt')} className="input" rows={2}
-                placeholder="e.g. Focus on word problems, use Kenyan currency" />
-            </div>
-          )}
-        </div>
+            {mode === 'ai' && isOnline && (
+              <div>
+                <label className="label">Teacher guidance (optional)</label>
+                <textarea {...register('teacher_prompt')} className="input" rows={2}
+                  placeholder="e.g. Focus on word problems, use Kenyan currency" />
+              </div>
+            )}
+
+            {mode === 'ai' && isOnline && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="label">Number of questions</label>
+                  <input type="number" {...register('item_count', { valueAsNumber: true })} className="input" min={1} max={20} />
+                  <p className="text-xs text-gray-500 mt-1">Choose between 1 and 20 questions</p>
+                </div>
+                <div className="flex items-end">
+                  <label className="flex items-center gap-2 cursor-pointer pb-2">
+                    <input type="checkbox" {...register('include_diagrams')} className="accent-primary-500" />
+                    <span className="text-sm">Include diagram / chart prompts</span>
+                  </label>
+                </div>
+              </div>
+            )}
+          </div>
 
         <div className="card space-y-4 mt-4">
           <div className="flex items-center justify-between">
@@ -270,6 +289,8 @@ export function AssessmentNewPage() {
                 className="input" rows={2} placeholder="Question stem..." />
               <input value={item.answer_guide ?? ''} onChange={(e) => updateItem(idx, 'answer_guide', e.target.value)}
                 className="input" placeholder="Answer guide (optional)" />
+              <textarea value={item.diagram_description ?? ''} onChange={(e) => updateItem(idx, 'diagram_description', e.target.value)}
+                className="input" rows={1} placeholder="Diagram / chart / picture description (optional)" />
             </div>
           ))}
 

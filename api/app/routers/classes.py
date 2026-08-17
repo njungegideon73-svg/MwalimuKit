@@ -50,7 +50,7 @@ async def list_classes(user: CurrentUser, db: AsyncSession = Depends(get_db)) ->
                 .order_by(SchoolClass.created_at.desc())
             )
         ).scalars().all()
-    return [_to_out(c) for c in rows]
+    return [await _to_out_async(c, db) for c in rows]
 
 
 @router.post("", response_model=ClassOut)
@@ -67,7 +67,7 @@ async def create_class(payload: ClassIn, user: CurrentUser, db: AsyncSession = D
     db.add(c)
     await db.commit()
     await db.refresh(c)
-    return _to_out(c)
+    return await _to_out_async(c, db)
 
 
 @router.get("/{class_id}", response_model=ClassOut)
@@ -95,7 +95,7 @@ async def get_class(class_id: UUID, user: CurrentUser, db: AsyncSession = Depend
         ).scalar_one_or_none()
     if c is None:
         raise HTTPException(status_code=404, detail="Class not found")
-    return _to_out(c)
+    return await _to_out_async(c, db)
 
 
 async def _resolve_la_codes_from_ids(
