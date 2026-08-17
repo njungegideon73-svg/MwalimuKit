@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.routers import (
     auth, assessments, classes, curriculum, feature_flags, health,
-    learners, runs, scores, schools,
+    history, learners, runs, scores, schools,
 )
 
 
@@ -46,6 +46,7 @@ def create_app() -> FastAPI:
     app.include_router(schools.router, prefix="/api/v1/schools", tags=["schools"])
     app.include_router(curriculum.router, prefix="/api/v1/curriculum", tags=["curriculum"])
     app.include_router(assessments.router, prefix="/api/v1/assessments", tags=["assessments"])
+    app.include_router(history.router, prefix="/api/v1/history", tags=["history"])
     app.include_router(classes.router, prefix="/api/v1/classes", tags=["classes"])
     app.include_router(learners.router, prefix="/api/v1/learners", tags=["learners"])
     app.include_router(runs.router, prefix="/api/v1/runs", tags=["runs"])

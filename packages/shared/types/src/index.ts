@@ -59,6 +59,7 @@ export interface RubricLevel {
   level: 1 | 2 | 3 | 4;
   label: string;
   descriptor: string;
+  color?: string;
 }
 
 export interface RubricCriterion {
@@ -196,4 +197,21 @@ export interface PaginatedResponse<T> {
   offset: number;
   limit: number;
   items: T[];
+}
+
+// ---------- Prompt History ----------
+
+export interface PromptHistoryEntry {
+  id: ID;
+  assessment_id: ID | null;
+  learning_area_code: string;
+  strand_code: string;
+  sub_strand_codes: string[];
+  grade_level: string;
+  teacher_prompt: string | null;
+  item_count: number;
+  provider: string;
+  model: string;
+  feedback: string | null;
+  created_at: string;
 }

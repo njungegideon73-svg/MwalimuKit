@@ -8,8 +8,10 @@ from app.models.learner import Learner
 from app.models.run import AssessmentRun
 from app.models.score import Score
 from app.models.feature_flag import FeatureFlag
+from app.models.prompt_history import PromptHistory
 
 __all__ = [
     "School", "User", "LearningArea", "Strand", "SubStrand", "Assessment",
     "SchoolClass", "Learner", "AssessmentRun", "Score", "FeatureFlag",
+    "PromptHistory",
 ]

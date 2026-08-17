@@ -10,6 +10,7 @@ class RubricLevel(BaseModel):
     level: int = Field(ge=1, le=4)
     label: str
     descriptor: str = ""
+    color: str | None = None
 
 
 class RubricCriterion(BaseModel):
@@ -57,6 +58,17 @@ class AssessmentIn(BaseModel):
     items: list[AssessmentItem]
     tags: list[str] = Field(default_factory=list)
     is_favourite: bool = False
+
+
+class AssessmentUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=160)
+    description: str | None = None
+    strand_code: str | None = None
+    sub_strand_codes: list[str] | None = None
+    rubric: Rubric | None = None
+    items: list[AssessmentItem] | None = None
+    tags: list[str] | None = None
+    is_favourite: bool | None = None
 
 
 class AssessmentOut(AssessmentIn):

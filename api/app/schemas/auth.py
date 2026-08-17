@@ -22,6 +22,16 @@ class RefreshRequest(BaseModel):
     refresh_token: str
 
 
+class ChangePasswordRequest(BaseModel):
+    current_password: str = Field(min_length=1, max_length=128)
+    new_password: str = Field(min_length=8, max_length=128)
+
+
+class ChangeSchoolCodeRequest(BaseModel):
+    current_password: str = Field(min_length=1, max_length=128)
+    new_school_code: str = Field(min_length=4, max_length=16)
+
+
 class UserOut(BaseModel):
     id: UUID
     school_id: UUID

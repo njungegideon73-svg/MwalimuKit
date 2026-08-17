@@ -2,8 +2,9 @@
 from __future__ import annotations
 
 import asyncio
-from typing import AsyncGenerator
-from uuid import uuid4
+import json
+from typing import Any, Optional
+from uuid import UUID, uuid4
 
 import pytest
 import pytest_asyncio
@@ -22,6 +23,121 @@ from app.models.run import AssessmentRun
 from app.models.score import Score
 from app.main import app
 from app.core.db import get_db
+
+
+# ---- Patch PG types for SQLite compatibility ----
+from sqlalchemy.dialects.postgresql import JSONB, ARRAY, UUID as PGUUID, CITEXT
+
+
+def _uuid_bind_processor(self, dialect):
+    if dialect.name == "sqlite":
+        def process(value):
+            if value is None:
+                return None
+            if isinstance(value, UUID):
+                return value.hex
+            return value.replace("-", "") if isinstance(value, str) else str(value)
+        return process
+    return None
+
+
+def _uuid_result_processor(self, dialect, coltype):
+    if dialect.name == "sqlite":
+        def process(value):
+            if value is None:
+                return None
+            if isinstance(value, UUID):
+                return value
+            v = value.replace("-", "") if isinstance(value, str) else str(value)
+            return UUID(v)
+        return process
+    return None
+
+
+def _jsonb_bind_processor(self, dialect):
+    if dialect.name == "sqlite":
+        def process(value):
+            if value is None:
+                return None
+            return json.dumps(value)
+        return process
+    return None
+
+
+def _jsonb_result_processor(self, dialect, coltype):
+    if dialect.name == "sqlite":
+        def process(value):
+            if value is None:
+                return None
+            if isinstance(value, (dict, list)):
+                return value
+            return json.loads(value)
+        return process
+    return None
+
+
+def _array_bind_processor(self, dialect):
+    if dialect.name == "sqlite":
+        def process(value):
+            if value is None:
+                return None
+            return json.dumps([str(v) for v in value] if value else [])
+        return process
+    return None
+
+
+def _array_result_processor(self, dialect, coltype):
+    if dialect.name == "sqlite":
+        def process(value):
+            if value is None:
+                return None
+            if isinstance(value, list):
+                return value
+            try:
+                parsed = json.loads(value)
+                return parsed if isinstance(parsed, list) else []
+            except (json.JSONDecodeError, TypeError):
+                return []
+        return process
+    return None
+
+
+def _citext_bind_processor(self, dialect):
+    return None
+
+
+def _citext_result_processor(self, dialect, coltype):
+    return None
+
+
+# Monkey-patch: override bind_processor / result_processor as functions
+PGUUID.bind_processor = _uuid_bind_processor  # type: ignore
+PGUUID.result_processor = _uuid_result_processor  # type: ignore
+JSONB.bind_processor = _jsonb_bind_processor  # type: ignore
+JSONB.result_processor = _jsonb_result_processor  # type: ignore
+ARRAY.bind_processor = _array_bind_processor  # type: ignore
+ARRAY.result_processor = _array_result_processor  # type: ignore
+CITEXT.bind_processor = _citext_bind_processor  # type: ignore
+CITEXT.result_processor = _citext_result_processor  # type: ignore
+
+# DDL compilers — tell SQLite how to CREATE these column types
+from sqlalchemy.ext.compiler import compiles as sa_compiles
+
+@sa_compiles(JSONB, "sqlite")
+def _compile_jsonb(type_, compiler, **kw):
+    return "JSON"
+
+@sa_compiles(ARRAY, "sqlite")
+def _compile_array(type_, compiler, **kw):
+    return "TEXT"
+
+@sa_compiles(PGUUID, "sqlite")
+def _compile_uuid(type_, compiler, **kw):
+    return "VARCHAR(36)"
+
+@sa_compiles(CITEXT, "sqlite")
+def _compile_citext(type_, compiler, **kw):
+    return "TEXT"
 
 
 TEST_DB_URL = "sqlite+aiosqlite:///:memory:"

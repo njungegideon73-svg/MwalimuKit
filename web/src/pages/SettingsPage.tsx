@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import { useAuthStore } from '@/lib/auth-store';
-import { Download, LogOut, Shield, Brain } from 'lucide-react';
+import { Download, LogOut, Shield, Brain, Key, Building2 } from 'lucide-react';
 import { apiFetch } from '@/lib/api';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -8,6 +9,62 @@ import type { Assessment, SchoolClass, Learner } from '@mwalimukit/types';
 export function SettingsPage() {
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
+
+  const [currentPw, setCurrentPw] = useState('');
+  const [newPw, setNewPw] = useState('');
+  const [confirmPw, setConfirmPw] = useState('');
+  const [changingPw, setChangingPw] = useState(false);
+
+  const [schoolPw, setSchoolPw] = useState('');
+  const [newSchoolCode, setNewSchoolCode] = useState('');
+  const [changingSchool, setChangingSchool] = useState(false);
+
+  const handleChangePassword = async () => {
+    if (newPw !== confirmPw) {
+      toast.error('Passwords do not match');
+      return;
+    }
+    if (newPw.length < 8) {
+      toast.error('Password must be at least 8 characters');
+      return;
+    }
+    setChangingPw(true);
+    try {
+      await apiFetch('/auth/change-password', {
+        method: 'POST',
+        json: { current_password: currentPw, new_password: newPw },
+      });
+      toast.success('Password changed');
+      setCurrentPw('');
+      setNewPw('');
+      setConfirmPw('');
+    } catch (e: any) {
+      toast.error(e?.message || 'Failed to change password');
+    } finally {
+      setChangingPw(false);
+    }
+  };
+
+  const handleChangeSchoolCode = async () => {
+    if (!newSchoolCode.trim()) {
+      toast.error('Enter a school code');
+      return;
+    }
+    setChangingSchool(true);
+    try {
+      await apiFetch<{ school_id: string }>('/auth/change-school-code', {
+        method: 'POST',
+        json: { current_password: schoolPw, new_school_code: newSchoolCode.trim() },
+      });
+      toast.success('School code updated');
+      setSchoolPw('');
+      setNewSchoolCode('');
+    } catch (e: any) {
+      toast.error(e?.message || 'Failed to change school code');
+    } finally {
+      setChangingSchool(false);
+    }
+  };
 
   const handleExport = async () => {
     try {
@@ -70,6 +127,90 @@ export function SettingsPage() {
             <label className="label">Role</label>
             <p className="text-sm text-gray-900 capitalize">{user?.role?.replace('_', ' ')}</p>
           </div>
+        </div>
+      </div>
+
+      {/* Change Password */}
+      <div className="card">
+        <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <Key className="h-4 w-4" /> Change password
+        </h2>
+        <div className="space-y-3">
+          <div>
+            <label className="label">Current password</label>
+            <input
+              type="password"
+              className="input"
+              value={currentPw}
+              onChange={(e) => setCurrentPw(e.target.value)}
+              placeholder="Enter current password"
+            />
+          </div>
+          <div>
+            <label className="label">New password</label>
+            <input
+              type="password"
+              className="input"
+              value={newPw}
+              onChange={(e) => setNewPw(e.target.value)}
+              placeholder="At least 8 characters"
+            />
+          </div>
+          <div>
+            <label className="label">Confirm new password</label>
+            <input
+              type="password"
+              className="input"
+              value={confirmPw}
+              onChange={(e) => setConfirmPw(e.target.value)}
+              placeholder="Repeat new password"
+            />
+          </div>
+          <button
+            onClick={handleChangePassword}
+            disabled={changingPw || !currentPw || !newPw}
+            className="btn-primary"
+          >
+            {changingPw ? 'Changing...' : 'Change password'}
+          </button>
+        </div>
+      </div>
+
+      {/* Change School Code */}
+      <div className="card">
+        <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <Building2 className="h-4 w-4" /> Change school
+        </h2>
+        <div className="space-y-3">
+          <p className="text-xs text-gray-500">
+            Move your account to a different school. Ask your new school admin for the code.
+          </p>
+          <div>
+            <label className="label">New school code</label>
+            <input
+              className="input"
+              value={newSchoolCode}
+              onChange={(e) => setNewSchoolCode(e.target.value)}
+              placeholder="e.g. NAIROBI01"
+            />
+          </div>
+          <div>
+            <label className="label">Confirm password</label>
+            <input
+              type="password"
+              className="input"
+              value={schoolPw}
+              onChange={(e) => setSchoolPw(e.target.value)}
+              placeholder="Enter your password"
+            />
+          </div>
+          <button
+            onClick={handleChangeSchoolCode}
+            disabled={changingSchool || !newSchoolCode.trim() || !schoolPw}
+            className="btn-primary"
+          >
+            {changingSchool ? 'Updating...' : 'Update school'}
+          </button>
         </div>
       </div>
 

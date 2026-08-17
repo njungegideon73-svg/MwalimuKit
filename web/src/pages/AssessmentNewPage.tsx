@@ -9,6 +9,8 @@ import { apiFetch } from '@/lib/api';
 import { getCurriculum } from '@/lib/curriculum';
 import { useFeatureFlags } from '@/lib/feature-flags';
 import { defaultRubric } from '@mwalimukit/rubrics';
+import { RubricEditor } from '@/components/RubricEditor';
+import { PromptHistoryPanel } from '@/components/PromptHistoryPanel';
 import toast from 'react-hot-toast';
 import type { AssessmentItem, Rubric } from '@mwalimukit/types';
 
@@ -162,6 +164,16 @@ export function AssessmentNewPage() {
         <p className="text-gray-500 text-sm mt-1">Pick a strand, generate or build manually</p>
       </div>
 
+      <PromptHistoryPanel
+        onUsePrompt={(entry) => {
+          if (entry.teacher_prompt) {
+            setValue('teacher_prompt', entry.teacher_prompt);
+          }
+          setValue('learning_area_code', entry.learning_area_code);
+          toast.success('Prompt restored from history');
+        }}
+      />
+
       <form onSubmit={handleSubmit(mode === 'ai' && items.length === 0 ? handleGenerate : handleSave)}>
         <div className="card space-y-4">
           <h2 className="font-semibold text-gray-900">1. Choose strand</h2>
@@ -273,7 +285,15 @@ export function AssessmentNewPage() {
         </div>
 
         <div className="card mt-4 space-y-4">
-          <h2 className="font-semibold text-gray-900">3. Save</h2>
+          <h2 className="font-semibold text-gray-900">3. Rubric</h2>
+          <p className="text-sm text-gray-500">
+            Edit levels, descriptors, and criteria. Drag to reorder criteria.
+          </p>
+          <RubricEditor value={rubric} onChange={setRubric} />
+        </div>
+
+        <div className="card mt-4 space-y-4">
+          <h2 className="font-semibold text-gray-900">4. Save</h2>
           <div>
             <label className="label">Assessment name</label>
             <input {...register('name')} className="input" placeholder="e.g. Counting 0-20 check" />

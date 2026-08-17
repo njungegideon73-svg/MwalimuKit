@@ -4,7 +4,6 @@ from __future__ import annotations
 from datetime import datetime
 
 from sqlalchemy import select
-from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.run import AssessmentRun
@@ -36,7 +35,7 @@ async def upsert_scores(db: AsyncSession, school_id, batch: ScoreBatchIn) -> Sco
             rejected.append({"id": str(s.id), "reason": "Run not found or access denied"})
             continue
         try:
-            updated_at = datetime.fromisoformat(s.updated_at.replace("Z", "+00:00"))
+            updated_at = datetime.fromisoformat(s.updated_at.replace("Z", "+00:00")).replace(tzinfo=None)
 
             # Check for conflict: does a newer version already exist?
             existing = (
@@ -51,13 +50,16 @@ async def upsert_scores(db: AsyncSession, school_id, batch: ScoreBatchIn) -> Sco
 
             if existing and existing.updated_at > updated_at:
                 conflicts += 1
-                # Server wins — skip this write
                 accepted += 1
                 continue
 
-            stmt = (
-                pg_insert(Score)
-                .values(
+            if existing:
+                existing.level = s.level
+                existing.note = s.note
+                existing.updated_at = updated_at
+                await db.merge(existing)
+            else:
+                score = Score(
                     id=s.id,
                     run_id=s.run_id,
                     learner_id=s.learner_id,
@@ -66,12 +68,7 @@ async def upsert_scores(db: AsyncSession, school_id, batch: ScoreBatchIn) -> Sco
                     note=s.note,
                     updated_at=updated_at,
                 )
-                .on_conflict_do_update(
-                    index_elements=["run_id", "learner_id", "item_id"],
-                    set_={"level": s.level, "note": s.note, "updated_at": updated_at},
-                )
-            )
-            await db.execute(stmt)
+                db.add(score)
             accepted += 1
         except Exception as exc:  # noqa: BLE001
             rejected.append({"id": str(s.id), "reason": str(exc)})

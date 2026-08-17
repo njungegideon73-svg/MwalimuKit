@@ -12,8 +12,10 @@ from app.core.deps import CurrentUser
 from app.core.rate_limit import rate_limit_generate
 from app.models.assessment import Assessment, AssessmentSource
 from app.models.curriculum import LearningArea
+from app.models.prompt_history import PromptHistory
 from app.schemas.assessment import (
-    AssessmentIn, AssessmentOut, GenerateAssessmentRequest, GenerateAssessmentResponse,
+    AssessmentIn, AssessmentOut, AssessmentUpdate,
+    GenerateAssessmentRequest, GenerateAssessmentResponse,
 )
 
 
@@ -25,6 +27,7 @@ async def generate(
     request: Request,
     req: GenerateAssessmentRequest,
     user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
     _rate: None = Depends(rate_limit_generate),
 ) -> GenerateAssessmentResponse:
     provider = get_provider()
@@ -36,6 +39,24 @@ async def generate(
         teacher_prompt=req.teacher_prompt,
         item_count=req.item_count,
     )
+
+    history = PromptHistory(
+        user_id=user.id,
+        school_id=user.school_id,
+        learning_area_code=req.learning_area_code,
+        strand_code=req.strand_code,
+        sub_strand_codes=req.sub_strand_codes,
+        grade_level=req.grade_level,
+        teacher_prompt=req.teacher_prompt,
+        item_count=req.item_count,
+        response_rubric=result.rubric.model_dump() if hasattr(result.rubric, "model_dump") else result.rubric,
+        response_items=[i.model_dump() for i in result.items] if hasattr(result.items[0], "model_dump") else result.items,
+        provider=result.provider,
+        model=result.model,
+    )
+    db.add(history)
+    await db.commit()
+
     return GenerateAssessmentResponse(
         rubric=result.rubric,
         items=result.items,
@@ -141,6 +162,67 @@ async def duplicate_assessment(
     await db.commit()
     await db.refresh(dupe)
     return _to_out(dupe)
+
+
+@router.patch("/{assessment_id}", response_model=AssessmentOut)
+async def update_assessment(
+    assessment_id: UUID,
+    payload: AssessmentUpdate,
+    user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> AssessmentOut:
+    a = (
+        await db.execute(
+            select(Assessment).where(
+                Assessment.id == assessment_id,
+                Assessment.school_id == user.school_id,
+                Assessment.deleted_at.is_(None),
+            )
+        )
+    ).scalar_one_or_none()
+    if a is None:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+
+    update_data = payload.model_dump(exclude_unset=True)
+    if "rubric" in update_data and update_data["rubric"] is not None:
+        rubric_val = update_data["rubric"]
+        if hasattr(rubric_val, "model_dump"):
+            update_data["rubric"] = rubric_val.model_dump()
+    if "items" in update_data and update_data["items"] is not None:
+        update_data["items"] = [
+            i.model_dump() if hasattr(i, "model_dump") else i
+            for i in update_data["items"]
+        ]
+
+    for field, value in update_data.items():
+        setattr(a, field, value)
+
+    await db.commit()
+    await db.refresh(a)
+    return await _to_out_async(a, db)
+
+
+@router.post("/{assessment_id}/favourite", response_model=AssessmentOut)
+async def toggle_favourite(
+    assessment_id: UUID,
+    user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> AssessmentOut:
+    a = (
+        await db.execute(
+            select(Assessment).where(
+                Assessment.id == assessment_id,
+                Assessment.school_id == user.school_id,
+                Assessment.deleted_at.is_(None),
+            )
+        )
+    ).scalar_one_or_none()
+    if a is None:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+    a.is_favourite = not a.is_favourite
+    await db.commit()
+    await db.refresh(a)
+    return await _to_out_async(a, db)
 
 
 @router.delete("/{assessment_id}")
