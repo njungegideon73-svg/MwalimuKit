@@ -1,8 +1,9 @@
-# ── Build stage ──────────────────────────────
+# ── Build stage: install dependencies only ──
 FROM python:3.12-slim AS builder
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app \
     PIP_NO_CACHE_DIR=1
 
 WORKDIR /app
@@ -11,14 +12,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
+# Install just the dependencies (not the app itself)
 COPY api/pyproject.toml ./
-RUN pip install --no-cache-dir .
+RUN pip install --no-cache-dir \
+    fastapi uvicorn pydantic pydantic-settings \
+    sqlalchemy asyncpg psycopg[binary] alembic redis \
+    python-jose passlib python-multipart httpx \
+    openai anthropic structlog email-validator \
+    reportlab stripe python-dotenv
 
 # ── Runtime stage ───────────────────────────
 FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
         libpq5 curl \
