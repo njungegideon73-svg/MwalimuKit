@@ -47,3 +47,14 @@ class LearnerOut(BaseModel):
     admission_no: str | None
     gender: str | None
     deleted_at: str | None
+
+
+class LearnerWithClassName(BaseModel):
+    id: UUID
+    school_id: UUID
+    class_id: UUID
+    full_name: str
+    admission_no: str | None
+    gender: str | None
+    deleted_at: str | None
+    class_name: str

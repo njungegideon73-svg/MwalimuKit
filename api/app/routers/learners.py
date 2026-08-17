@@ -2,7 +2,7 @@
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import select, label
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_db
@@ -10,7 +10,7 @@ from app.core.deps import CurrentUser
 from app.models.learner import Learner
 from app.models.school_class import SchoolClass
 from app.models.user import UserRole
-from app.schemas.classes import LearnerBulkIn, LearnerIn, LearnerOut, LearnerUpdate
+from app.schemas.classes import LearnerBulkIn, LearnerIn, LearnerOut, LearnerUpdate, LearnerWithClassName
 
 
 router = APIRouter()
@@ -60,6 +60,36 @@ async def list_for_class(
         )
     ).scalars().all()
     return [_to_out(l) for l in rows]
+
+
+@router.get("/{learner_id}", response_model=LearnerWithClassName)
+async def get_learner(
+    learner_id: UUID, user: CurrentUser, db: AsyncSession = Depends(get_db)
+) -> LearnerWithClassName:
+    result = await db.execute(
+        select(Learner, SchoolClass.name.label("class_name"))
+        .join(SchoolClass, Learner.class_id == SchoolClass.id)
+        .where(
+            Learner.id == learner_id,
+            Learner.school_id == user.school_id,
+            Learner.deleted_at.is_(None),
+        )
+    )
+    row = result.first()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Learner not found")
+
+    learner, class_name = row
+    return LearnerWithClassName(
+        id=learner.id,
+        school_id=learner.school_id,
+        class_id=learner.class_id,
+        full_name=learner.full_name,
+        admission_no=learner.admission_no,
+        gender=learner.gender,
+        deleted_at=learner.deleted_at.isoformat() if learner.deleted_at else None,
+        class_name=class_name,
+    )
 
 
 @router.post("", response_model=LearnerOut)

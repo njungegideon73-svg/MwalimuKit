@@ -86,3 +86,25 @@ async def test_delete_nonexistent_learner(client: AsyncClient, auth_headers: dic
         f"/api/v1/learners/{uuid4()}", headers=auth_headers
     )
     assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_get_learner(client: AsyncClient, auth_headers: dict, test_learner, test_class):
+    resp = await client.get(
+        f"/api/v1/learners/{test_learner.id}", headers=auth_headers
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["id"] == str(test_learner.id)
+    assert data["full_name"] == "Achieng Omondi"
+    assert data["class_name"] == test_class.name
+    assert data["class_id"] == str(test_learner.class_id)
+
+
+@pytest.mark.asyncio
+async def test_get_nonexistent_learner(client: AsyncClient, auth_headers: dict):
+    from uuid import uuid4
+    resp = await client.get(
+        f"/api/v1/learners/{uuid4()}", headers=auth_headers
+    )
+    assert resp.status_code == 404
