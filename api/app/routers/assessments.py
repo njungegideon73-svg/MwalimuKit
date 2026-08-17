@@ -68,6 +68,8 @@ async def create_assessment(
         learning_area_id=la.id,
         name=payload.name,
         description=payload.description,
+        strand_code=payload.strand_code,
+        sub_strand_codes=payload.sub_strand_codes,
         source=source,
         rubric=payload.rubric.model_dump(),
         items=[i.model_dump() for i in payload.items],
@@ -98,6 +100,43 @@ async def get_assessment(
     return _to_out(a)
 
 
+@router.post("/{assessment_id}/duplicate", response_model=AssessmentOut)
+async def duplicate_assessment(
+    assessment_id: UUID, user: CurrentUser, db: AsyncSession = Depends(get_db)
+) -> AssessmentOut:
+    original = (
+        await db.execute(
+            select(Assessment).where(
+                Assessment.id == assessment_id,
+                Assessment.school_id == user.school_id,
+                Assessment.deleted_at.is_(None),
+            )
+        )
+    ).scalar_one_or_none()
+    if original is None:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+
+    dupe = Assessment(
+        id=uuid4(),
+        owner_id=user.id,
+        school_id=user.school_id,
+        learning_area_id=original.learning_area_id,
+        name=f"{original.name} (copy)",
+        description=original.description,
+        strand_code=original.strand_code,
+        sub_strand_codes=list(original.sub_strand_codes) if original.sub_strand_codes else [],
+        source=original.source,
+        rubric=dict(original.rubric),
+        items=list(original.items),
+        tags=list(original.tags),
+        is_favourite=False,
+    )
+    db.add(dupe)
+    await db.commit()
+    await db.refresh(dupe)
+    return _to_out(dupe)
+
+
 @router.delete("/{assessment_id}")
 async def soft_delete(
     assessment_id: UUID, user: CurrentUser, db: AsyncSession = Depends(get_db)
@@ -116,7 +155,41 @@ async def soft_delete(
     return {"deleted": True}
 
 
+# --- alias for learning_area_code lookup ---
+_la_cache: dict[str, str] = {}
+
+
+def _resolve_la_code(db: AsyncSession, learning_area_id: UUID) -> str:
+    """Synchronous placeholder — actual resolution happens in _to_out_async."""
+    return ""
+
+
+async def _to_out_async(a: Assessment, db: AsyncSession) -> AssessmentOut:
+    la = (
+        await db.execute(select(LearningArea).where(LearningArea.id == a.learning_area_id))
+    ).scalar_one_or_none()
+    return AssessmentOut(
+        id=a.id,
+        owner_id=a.owner_id,
+        school_id=a.school_id,
+        name=a.name,
+        description=a.description,
+        learning_area_code=la.code if la else "",
+        strand_code=a.strand_code or "",
+        sub_strand_codes=list(a.sub_strand_codes) if a.sub_strand_codes else [],
+        source=a.source.value if hasattr(a.source, "value") else str(a.source),
+        rubric=a.rubric,
+        items=a.items,
+        tags=a.tags,
+        is_favourite=a.is_favourite,
+        created_at=a.created_at.isoformat(),
+        updated_at=a.updated_at.isoformat(),
+        deleted_at=a.deleted_at.isoformat() if a.deleted_at else None,
+    )
+
+
 def _to_out(a: Assessment) -> AssessmentOut:
+    """Fallback for contexts where we don't need the learning area code."""
     return AssessmentOut(
         id=a.id,
         owner_id=a.owner_id,
@@ -124,8 +197,8 @@ def _to_out(a: Assessment) -> AssessmentOut:
         name=a.name,
         description=a.description,
         learning_area_code="",
-        strand_code="",
-        sub_strand_codes=[],
+        strand_code=a.strand_code or "",
+        sub_strand_codes=list(a.sub_strand_codes) if a.sub_strand_codes else [],
         source=a.source.value if hasattr(a.source, "value") else str(a.source),
         rubric=a.rubric,
         items=a.items,

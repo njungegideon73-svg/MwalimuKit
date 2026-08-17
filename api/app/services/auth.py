@@ -3,11 +3,13 @@ from __future__ import annotations
 
 from uuid import uuid4
 
+from jose import JWTError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import (
-    create_access_token, create_refresh_token, hash_password, verify_password,
+    create_access_token, create_refresh_token, decode_token,
+    hash_password, verify_password,
 )
 from app.models.school import School
 from app.models.user import User, UserRole
@@ -46,6 +48,28 @@ async def login(db: AsyncSession, *, email: str, password: str) -> TokenPair:
     ).scalar_one_or_none()
     if user is None or not verify_password(password, user.password_hash):
         raise ValueError("Invalid email or password.")
+    return _pair(user)
+
+
+async def refresh_tokens(db: AsyncSession, refresh_token: str) -> TokenPair:
+    try:
+        payload = decode_token(refresh_token)
+    except JWTError as exc:
+        raise ValueError("Invalid or expired refresh token.") from exc
+
+    if payload.get("type") != "refresh":
+        raise ValueError("Invalid token type.")
+
+    user_id = payload.get("sub")
+    if not user_id:
+        raise ValueError("Invalid token payload.")
+
+    user = (
+        await db.execute(select(User).where(User.id == user_id, User.is_active.is_(True)))
+    ).scalar_one_or_none()
+    if user is None:
+        raise ValueError("User not found or deactivated.")
+
     return _pair(user)
 
 

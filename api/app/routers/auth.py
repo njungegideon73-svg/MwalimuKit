@@ -3,8 +3,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_db
-from app.schemas.auth import LoginRequest, SignupRequest, TokenPair
+from app.schemas.auth import LoginRequest, RefreshRequest, SignupRequest, TokenPair
 from app.services.auth import login as svc_login
+from app.services.auth import refresh_tokens as svc_refresh
 from app.services.auth import signup as svc_signup
 
 
@@ -23,5 +24,13 @@ async def signup(payload: SignupRequest, db: AsyncSession = Depends(get_db)) -> 
 async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)) -> TokenPair:
     try:
         return await svc_login(db, email=payload.email, password=payload.password)
+    except ValueError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from None
+
+
+@router.post("/refresh", response_model=TokenPair)
+async def refresh(payload: RefreshRequest, db: AsyncSession = Depends(get_db)) -> TokenPair:
+    try:
+        return await svc_refresh(db, payload.refresh_token)
     except ValueError as exc:
         raise HTTPException(status_code=401, detail=str(exc)) from None

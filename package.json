@@ -5,13 +5,16 @@
   "description": "MwalimuKit monorepo root",
   "workspaces": [
     "web",
-    "packages/*"
+    "mobile",
+    "packages/shared/*"
   ],
   "scripts": {
     "dev": "npm --workspace web run dev",
     "build": "npm --workspace web run build",
     "lint": "npm --workspace web run lint",
-    "typecheck": "npm --workspace web run typecheck"
+    "typecheck": "npm --workspace web run typecheck",
+    "android:sync": "npm --workspace web run build && npm --workspace mobile run sync",
+    "android:open": "npm --workspace mobile run open"
   },
   "engines": {
     "node": ">=20.0.0",

@@ -110,6 +110,8 @@ export interface SchoolClass {
   grade_level: string;
   learning_area_codes: string[];
   deleted_at: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Learner {
@@ -153,6 +155,10 @@ export interface AuthLoginResponse {
   user: User;
 }
 
+export interface AuthRefreshRequest {
+  refresh_token: string;
+}
+
 export interface GenerateAssessmentRequest {
   learning_area_code: string;
   strand_code: string;
@@ -183,4 +189,11 @@ export interface FeatureFlags {
   ai_generation_enabled: boolean;
   max_classes: number | null;
   max_learners_per_class: number | null;
+}
+
+export interface PaginatedResponse<T> {
+  total: number;
+  offset: number;
+  limit: number;
+  items: T[];
 }

@@ -11,6 +11,7 @@ Thumbs.db
 # Node / frontend
 node_modules/
 web/node_modules/
+mobile/node_modules/
 web/dist/
 web/.vite/
 web/.cache/
@@ -44,6 +45,12 @@ env/
 api/dist/
 api/build/
 api/.pytest_cache/
+
+# Android build artifacts
+mobile/android/app/build/
+mobile/android/build/
+mobile/android/.gradle/
+mobile/android/capacitor-*.json
 
 # Environment / secrets
 .env

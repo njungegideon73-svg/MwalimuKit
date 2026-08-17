@@ -1,7 +1,8 @@
 """Assessment runs (a session of an assessment against a class)."""
+from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -53,6 +54,20 @@ async def start_run(payload: RunIn, user: CurrentUser, db: AsyncSession = Depend
     return _to_out(r)
 
 
+@router.get("", response_model=list[RunOut])
+async def list_runs(
+    user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+    class_id: UUID | None = Query(default=None),
+) -> list[RunOut]:
+    stmt = select(AssessmentRun).where(AssessmentRun.school_id == user.school_id)
+    if class_id:
+        stmt = stmt.where(AssessmentRun.class_id == class_id)
+    stmt = stmt.order_by(AssessmentRun.started_at.desc())
+    rows = (await db.execute(stmt)).scalars().all()
+    return [_to_out(r) for r in rows]
+
+
 @router.get("/{run_id}", response_model=RunOut)
 async def get_run(run_id: UUID, user: CurrentUser, db: AsyncSession = Depends(get_db)) -> RunOut:
     r = (
@@ -64,6 +79,25 @@ async def get_run(run_id: UUID, user: CurrentUser, db: AsyncSession = Depends(ge
     ).scalar_one_or_none()
     if r is None:
         raise HTTPException(status_code=404, detail="Run not found")
+    return _to_out(r)
+
+
+@router.post("/{run_id}/close", response_model=RunOut)
+async def close_run(run_id: UUID, user: CurrentUser, db: AsyncSession = Depends(get_db)) -> RunOut:
+    r = (
+        await db.execute(
+            select(AssessmentRun).where(
+                AssessmentRun.id == run_id, AssessmentRun.school_id == user.school_id
+            )
+        )
+    ).scalar_one_or_none()
+    if r is None:
+        raise HTTPException(status_code=404, detail="Run not found")
+    if r.closed_at is not None:
+        raise HTTPException(status_code=400, detail="Run already closed")
+    r.closed_at = datetime.now(tz=timezone.utc)
+    await db.commit()
+    await db.refresh(r)
     return _to_out(r)
 
 

@@ -18,6 +18,10 @@ class LoginRequest(BaseModel):
     password: str = Field(min_length=1, max_length=128)
 
 
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+
 class UserOut(BaseModel):
     id: UUID
     school_id: UUID

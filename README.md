@@ -14,15 +14,15 @@ MwalimuKit is an offline-first assessment platform for Kenyan schools. Teachers 
 
 This repository is a monorepo containing:
 
-| Path | Purpose |
-| --- | --- |
-| `web/` | React + Vite teacher PWA |
-| `api/` | FastAPI backend with PostgreSQL and Redis |
-| `mobile/` | Optional Android wrapper for future expansion |
+| Path               | Purpose                                           |
+| ------------------ | ------------------------------------------------- |
+| `web/`             | React + Vite teacher PWA                          |
+| `api/`             | FastAPI backend with PostgreSQL and Redis         |
+| `mobile/`          | Optional Android wrapper for future expansion     |
 | `packages/shared/` | Curriculum content, rubric data, and shared types |
-| `infra/` | Docker setup and environment configuration |
-| `docs/` | Product, design, and engineering documentation |
-| `scripts/` | Utility scripts such as curriculum seeding |
+| `infra/`           | Docker setup and environment configuration        |
+| `docs/`            | Product, design, and engineering documentation    |
+| `scripts/`         | Utility scripts such as curriculum seeding        |
 
 ---
 
@@ -213,14 +213,14 @@ Out of scope for v0.1: report book export, advanced analytics dashboards, and a 
 
 ## Tech stack
 
-| Layer | Choice |
-| --- | --- |
+| Layer    | Choice                                                              |
+| -------- | ------------------------------------------------------------------- |
 | Frontend | React 18, Vite, TanStack Query, Zustand, Tailwind, shadcn/ui, Dexie |
-| Backend | FastAPI, SQLAlchemy 2.x, Alembic, PostgreSQL 16, Redis 7 |
-| Auth | JWT with school-scoped RBAC |
-| AI | Pluggable provider via `api/app/ai/provider.py` |
-| Offline | Service worker + IndexedDB + background sync |
-| Infra | Docker Compose for local and containerized deployment |
+| Backend  | FastAPI, SQLAlchemy 2.x, Alembic, PostgreSQL 16, Redis 7            |
+| Auth     | JWT with school-scoped RBAC                                         |
+| AI       | Pluggable provider via `api/app/ai/provider.py`                     |
+| Offline  | Service worker + IndexedDB + background sync                        |
+| Infra    | Docker Compose for local and containerized deployment               |
 
 ---
 
