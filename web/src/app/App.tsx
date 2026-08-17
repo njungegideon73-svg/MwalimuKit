@@ -37,6 +37,11 @@ import { TeachersManagementPage } from '@/pages/school-admin/TeachersManagementP
 import { SchoolLearnersManagementPage } from '@/pages/school-admin/SchoolLearnersManagementPage';
 import { SchoolClassesManagementPage } from '@/pages/school-admin/SchoolClassesManagementPage';
 
+import { SBADashboardPage } from '@/pages/SBADashboardPage';
+import { SBAMarksEntryPage } from '@/pages/SBAMarksEntryPage';
+import { SBAReportCardPage } from '@/pages/SBAReportCardPage';
+import { SBAClassAnalyticsPage } from '@/pages/SBAClassAnalyticsPage';
+
 function CapacitorBackButton() {
   const navigate = useNavigate();
 
@@ -124,7 +129,13 @@ export default function App() {
                 <Route path="/roadmap" element={<RoadmapPage />} />
                 <Route path="/billing" element={<BillingPage />} />
                 <Route path="/reports/learner/:learnerId" element={<ReportCardPage />} />
-                
+
+                {/* SBA Routes */}
+                <Route path="/sba" element={<SBADashboardPage />} />
+                <Route path="/sba/marks/:examId" element={<SBAMarksEntryPage />} />
+                <Route path="/sba/report-card" element={<SBAReportCardPage />} />
+                <Route path="/sba/analytics" element={<SBAClassAnalyticsPage />} />
+
                 {/* Super Admin Routes */}
                 <Route
                   path="/admin"

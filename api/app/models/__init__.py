@@ -12,9 +12,13 @@ from app.models.feature_request import FeatureRequest
 from app.models.feature_vote import FeatureVote
 from app.models.prompt_history import PromptHistory
 from app.models.subscription import Subscription
+from app.models.news_item import NewsItem
+from app.models.term_exam import TermExam
+from app.models.learner_exam_score import LearnerExamScore
 
 __all__ = [
     "School", "User", "LearningArea", "Strand", "SubStrand", "Assessment",
     "SchoolClass", "Learner", "AssessmentRun", "Score", "FeatureFlag",
-    "FeatureRequest", "FeatureVote", "PromptHistory", "Subscription",
+    "FeatureRequest", "FeatureVote", "PromptHistory", "Subscription", "NewsItem",
+    "TermExam", "LearnerExamScore",
 ]

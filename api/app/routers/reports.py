@@ -13,11 +13,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.db import get_db
 from app.core.deps import CurrentUser
 from app.models.assessment import Assessment
+from app.models.curriculum import LearningArea
 from app.models.learner import Learner
+from app.models.learner_exam_score import LearnerExamScore
 from app.models.run import AssessmentRun
-from app.models.score import Score
 from app.models.school import School
 from app.models.school_class import SchoolClass
+from app.models.score import Score
+from app.models.term_exam import TermExam
 
 router = APIRouter()
 
@@ -257,7 +260,256 @@ async def learner_report_card(
 
 
 # ---------------------------------------------------------------------------
-# 2.  Class summary CSV
+# 2.  SBA learner report card PDF
+# ---------------------------------------------------------------------------
+
+EXAM_TYPE_LABELS = {"opener": "Opener", "midterm": "Midterm", "endterm": "End Term"}
+
+
+@router.get("/report-card/{learner_id}")
+async def sba_report_card_pdf(
+    learner_id: UUID,
+    user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+    academic_year: str = Query(...),
+    format: str = Query("pdf"),
+):
+    if format != "pdf":
+        raise HTTPException(status_code=400, detail="Only PDF format is supported")
+
+    learner = (
+        await db.execute(
+            select(Learner).where(
+                Learner.id == learner_id,
+                Learner.school_id == user.school_id,
+                Learner.deleted_at.is_(None),
+            )
+        )
+    ).scalar_one_or_none()
+    if learner is None:
+        raise HTTPException(status_code=404, detail="Learner not found")
+
+    school_class = (
+        await db.execute(
+            select(SchoolClass).where(
+                SchoolClass.id == learner.class_id,
+                SchoolClass.school_id == user.school_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if school_class is None:
+        raise HTTPException(status_code=404, detail="Class not found")
+
+    school = (
+        await db.execute(
+            select(School).where(School.id == user.school_id)
+        )
+    ).scalar_one_or_none()
+
+    exams = (
+        await db.execute(
+            select(TermExam).where(
+                TermExam.class_id == learner.class_id,
+                TermExam.academic_year == academic_year,
+                TermExam.school_id == user.school_id,
+            ).order_by(TermExam.term, TermExam.exam_type)
+        )
+    ).scalars().all()
+
+    exam_ids = [e.id for e in exams]
+    if not exam_ids:
+        raise HTTPException(status_code=404, detail="No term exams found for this learner in this academic year")
+
+    scores = (
+        await db.execute(
+            select(LearnerExamScore).where(
+                LearnerExamScore.learner_id == learner_id,
+                LearnerExamScore.term_exam_id.in_(exam_ids),
+            )
+        )
+    ).scalars().all()
+    score_map = {str(s.term_exam_id): s for s in scores}
+
+    # Build subject reports and compute averages
+    subjects: list[dict] = []
+    exam_type_scores: dict[str, dict[str, list[float]]] = {}
+
+    for exam in exams:
+        la = (
+            await db.execute(
+                select(LearningArea).where(LearningArea.id == exam.learning_area_id)
+            )
+        ).scalar_one_or_none()
+        subject_name = la.name if la else "Unknown"
+
+        score = score_map.get(str(exam.id))
+        marks = score.marks if score else None
+        pct = round((marks / exam.max_marks) * 100, 1) if marks is not None else None
+
+        subjects.append({
+            "subject_name": subject_name,
+            "term": exam.term,
+            "exam_type": exam.exam_type,
+            "marks": marks,
+            "max_marks": exam.max_marks,
+            "percentage": pct,
+            "grade": score.grade if score else None,
+        })
+
+        term_key = str(exam.term)
+        if term_key not in exam_type_scores:
+            exam_type_scores[term_key] = {}
+        if exam.exam_type not in exam_type_scores[term_key]:
+            exam_type_scores[term_key][exam.exam_type] = []
+        if marks is not None:
+            exam_type_scores[term_key][exam.exam_type].append((marks / exam.max_marks) * 100)
+
+    term_averages: dict[str, float] = {}
+    all_pcts = []
+    for term_key, exam_types in exam_type_scores.items():
+        term_pcts = []
+        for etype_pcts in exam_types.values():
+            term_pcts.extend(etype_pcts)
+        if term_pcts:
+            avg = round(sum(term_pcts) / len(term_pcts), 1)
+            term_averages[term_key] = avg
+            all_pcts.extend(term_pcts)
+
+    overall_average = round(sum(all_pcts) / len(all_pcts), 1) if all_pcts else 0.0
+
+    # --- Build PDF ---
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+    from reportlab.lib.units import cm
+    from reportlab.platypus import (
+        Paragraph,
+        SimpleDocTemplate,
+        Spacer,
+        Table,
+        TableStyle,
+    )
+
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=1.5 * cm, bottomMargin=1.5 * cm)
+    styles = getSampleStyleSheet()
+    elements: list = []
+
+    title_style = ParagraphStyle("Title2", parent=styles["Title"], fontSize=16, spaceAfter=6)
+    subtitle_style = ParagraphStyle("Sub", parent=styles["Normal"], fontSize=11, alignment=1, spaceAfter=4)
+    body_style = styles["Normal"]
+    center_style = ParagraphStyle("Center", parent=body_style, fontSize=11, alignment=1, spaceAfter=4)
+
+    school_name = school.name if school else "School"
+    school_code = school.code if school else ""
+    elements.append(Paragraph(f"{school_name}", title_style))
+    elements.append(Paragraph(f"School Code: {school_code}", subtitle_style))
+    elements.append(Spacer(1, 0.4 * cm))
+
+    gender_display = (learner.gender or "-").upper()
+    info_data = [
+        [
+            Paragraph("<b>Learner Name:</b>", body_style),
+            Paragraph(learner.full_name, body_style),
+            Paragraph("<b>Admission No:</b>", body_style),
+            Paragraph(learner.admission_no or "-", body_style),
+        ],
+        [
+            Paragraph("<b>Gender:</b>", body_style),
+            Paragraph(gender_display, body_style),
+            Paragraph("<b>Class:</b>", body_style),
+            Paragraph(school_class.name, body_style),
+        ],
+        [
+            Paragraph("<b>Academic Year:</b>", body_style),
+            Paragraph(academic_year, body_style),
+            Paragraph("", body_style),
+            Paragraph("", body_style),
+        ],
+    ]
+    info_table = Table(info_data, colWidths=[3.5 * cm, 5.5 * cm, 3.5 * cm, 5.5 * cm])
+    info_table.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+    ]))
+    elements.append(info_table)
+    elements.append(Spacer(1, 0.5 * cm))
+
+    # Group subjects by term
+    terms = sorted({s["term"] for s in subjects})
+    for term in terms:
+        term_subjects = [s for s in subjects if s["term"] == term]
+        elements.append(Paragraph(f"<b>Term {term}</b>", center_style))
+        elements.append(Spacer(1, 0.2 * cm))
+
+        header = [
+            Paragraph("<b>Subject</b>", body_style),
+            Paragraph("<b>Exam Type</b>", body_style),
+            Paragraph("<b>Marks</b>", body_style),
+            Paragraph("<b>Max</b>", body_style),
+            Paragraph("<b>%</b>", body_style),
+            Paragraph("<b>Grade</b>", body_style),
+        ]
+        table_data = [header]
+
+        for s in term_subjects:
+            table_data.append([
+                Paragraph(s["subject_name"], body_style),
+                Paragraph(EXAM_TYPE_LABELS.get(s["exam_type"], s["exam_type"]), body_style),
+                Paragraph(str(s["marks"]) if s["marks"] is not None else "-", body_style),
+                Paragraph(str(s["max_marks"]), body_style),
+                Paragraph(f"{s['percentage']}%" if s["percentage"] is not None else "-", body_style),
+                Paragraph(s["grade"] or "-", body_style),
+            ])
+
+        col_widths = [6 * cm, 3.5 * cm, 2.2 * cm, 2 * cm, 2 * cm, 2 * cm]
+        term_table = Table(table_data, colWidths=col_widths, repeatRows=1)
+        term_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2C3E50")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("FONTSIZE", (0, 0), (-1, -1), 9),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.whitesmoke, colors.white]),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ("TOPPADDING", (0, 0), (-1, -1), 5),
+        ]))
+        elements.append(term_table)
+        elements.append(Spacer(1, 0.4 * cm))
+
+        term_avg = term_averages.get(str(term))
+        if term_avg is not None:
+            avg_style = ParagraphStyle("Avg", parent=body_style, fontSize=10, alignment=2, spaceAfter=4)
+            elements.append(Paragraph(f"<b>Term {term} Average: {term_avg}%</b>", avg_style))
+        elements.append(Spacer(1, 0.3 * cm))
+
+    # Overall average
+    pct_style = ParagraphStyle("Pct", parent=body_style, fontSize=12, alignment=1, spaceAfter=6)
+    elements.append(Paragraph(
+        f"<b>Overall Average: {overall_average}%</b>",
+        pct_style,
+    ))
+    elements.append(Spacer(1, 1.5 * cm))
+
+    # Signature line
+    sig_style = ParagraphStyle("Sig", parent=body_style, fontSize=10)
+    elements.append(Paragraph("_" * 40 + "          " + "_" * 20, sig_style))
+    elements.append(Paragraph("Class Teacher Signature                Date", sig_style))
+
+    doc.build(elements)
+    buffer.seek(0)
+
+    filename = f"sba_report_card_{learner.full_name.replace(' ', '_')}_{academic_year}.pdf"
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+# ---------------------------------------------------------------------------
+# 3.  Class summary CSV
 # ---------------------------------------------------------------------------
 
 @router.get("/class/{class_id}/summary-csv")

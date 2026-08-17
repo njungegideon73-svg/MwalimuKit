@@ -8,8 +8,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.routers import (
     admin, assessments, auth, billing, classes, curriculum, feature_flags,
-    health, history, learners, reports, runs, scores, schools,
-    super_admin, school_admin,
+    health, history, learners, news, reports, runs, scores, schools,
+    super_admin, school_admin, term_exams,
 )
 
 
@@ -55,6 +55,8 @@ def create_app() -> FastAPI:
     app.include_router(billing.router, prefix="/api/v1/billing", tags=["billing"])
     app.include_router(admin.router, prefix="/api/v1/admin", tags=["admin"])
     app.include_router(reports.router, prefix="/api/v1/reports", tags=["reports"])
+    app.include_router(news.router, prefix="/api/v1/news", tags=["news"])
+    app.include_router(term_exams.router, prefix="/api/v1/term-exams", tags=["term-exams"])
     app.include_router(super_admin.router, prefix="/api/v1/super-admin", tags=["super-admin"])
     app.include_router(school_admin.router, prefix="/api/v1/school-admin", tags=["school-admin"])
 

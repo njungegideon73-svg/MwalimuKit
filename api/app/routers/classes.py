@@ -72,15 +72,27 @@ async def create_class(payload: ClassIn, user: CurrentUser, db: AsyncSession = D
 
 @router.get("/{class_id}", response_model=ClassOut)
 async def get_class(class_id: UUID, user: CurrentUser, db: AsyncSession = Depends(get_db)) -> ClassOut:
-    c = (
-        await db.execute(
-            select(SchoolClass).where(
-                SchoolClass.id == class_id,
-                SchoolClass.teacher_id == user.id,
-                SchoolClass.deleted_at.is_(None),
+    user_role = user.role if hasattr(user.role, "value") else str(user.role)
+    if user_role in (UserRole.school_admin.value, UserRole.super_admin.value):
+        c = (
+            await db.execute(
+                select(SchoolClass).where(
+                    SchoolClass.id == class_id,
+                    SchoolClass.school_id == user.school_id,
+                    SchoolClass.deleted_at.is_(None),
+                )
             )
-        )
-    ).scalar_one_or_none()
+        ).scalar_one_or_none()
+    else:
+        c = (
+            await db.execute(
+                select(SchoolClass).where(
+                    SchoolClass.id == class_id,
+                    SchoolClass.teacher_id == user.id,
+                    SchoolClass.deleted_at.is_(None),
+                )
+            )
+        ).scalar_one_or_none()
     if c is None:
         raise HTTPException(status_code=404, detail="Class not found")
     return _to_out(c)

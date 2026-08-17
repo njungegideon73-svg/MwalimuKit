@@ -9,10 +9,11 @@ import {
   Menu,
   X,
   Shield,
-  Map,
+  Newspaper,
   CreditCard,
   School,
   GraduationCap,
+  ClipboardCheck,
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -20,8 +21,9 @@ const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard', roles: ['teacher', 'school_admin', 'super_admin'] },
   { to: '/assessments', icon: ClipboardList, label: 'Assessments', roles: ['teacher', 'school_admin', 'super_admin'] },
   { to: '/classes', icon: Users, label: 'Classes', roles: ['teacher', 'school_admin', 'super_admin'] },
+  { to: '/sba', icon: ClipboardCheck, label: 'SBA / Exams', roles: ['teacher', 'school_admin', 'super_admin'] },
   { to: '/admin', icon: Shield, label: 'School Dashboard', roles: ['school_admin', 'super_admin'] },
-  { to: '/roadmap', icon: Map, label: 'Roadmap', roles: ['teacher', 'school_admin', 'super_admin'] },
+  { to: '/roadmap', icon: Newspaper, label: 'News & Suggestions', roles: ['teacher', 'school_admin', 'super_admin'] },
   { to: '/billing', icon: CreditCard, label: 'Billing', roles: ['school_admin', 'super_admin'] },
   { to: '/settings', icon: Settings, label: 'Settings', roles: ['teacher', 'school_admin', 'super_admin'] },
 ];
