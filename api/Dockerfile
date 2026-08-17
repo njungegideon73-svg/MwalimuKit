@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY api/pyproject.toml ./
-RUN pip install --upgrade pip && pip install .
+RUN pip install --no-cache-dir .
 
 # ── Runtime stage ───────────────────────────
 FROM python:3.12-slim
