@@ -46,7 +46,12 @@ from app.models.base import Base
 import app.models  # noqa: F401  (registers models on Base.metadata)
 
 config = context.config
-config.set_main_option('sqlalchemy.url', settings.database_url.replace('%', '%%'))
+db_url = settings.database_url.replace('%', '%%')
+if db_url.startswith("postgresql+psycopg://"):
+    db_url = db_url.replace("postgresql+psycopg://", "postgresql+asyncpg://", 1)
+elif db_url.startswith("postgresql://"):
+    db_url = db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+config.set_main_option('sqlalchemy.url', db_url)
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
