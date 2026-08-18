@@ -11,6 +11,8 @@ import { useFeatureFlags } from '@/lib/feature-flags';
 import { defaultRubric } from '@mwalimukit/rubrics';
 import { RubricEditor } from '@/components/RubricEditor';
 import { PromptHistoryPanel } from '@/components/PromptHistoryPanel';
+import { MermaidChart } from '@/components/MermaidChart';
+import { SimpleChart } from '@/components/SimpleChart';
 import toast from 'react-hot-toast';
 import type { AssessmentItem, Rubric } from '@mwalimukit/types';
 
@@ -289,8 +291,28 @@ export function AssessmentNewPage() {
                 className="input" rows={2} placeholder="Question stem..." />
               <input value={item.answer_guide ?? ''} onChange={(e) => updateItem(idx, 'answer_guide', e.target.value)}
                 className="input" placeholder="Answer guide (optional)" />
-              <textarea value={item.diagram_description ?? ''} onChange={(e) => updateItem(idx, 'diagram_description', e.target.value)}
-                className="input" rows={1} placeholder="Diagram / chart / picture description (optional)" />
+              {item.diagram_type && item.diagram_type !== 'none' && item.diagram_data && (
+                <div className="border border-blue-100 rounded-lg p-3 bg-blue-50/30">
+                  <p className="text-xs font-medium text-blue-700 mb-2">
+                    Diagram ({item.diagram_type})
+                  </p>
+                  {item.diagram_type === 'flowchart' && (
+                    <MermaidChart code={item.diagram_data} />
+                  )}
+                  {item.diagram_type === 'chart' && (
+                    <SimpleChart data={item.diagram_data} />
+                  )}
+                  {item.diagram_type === 'diagram' && (
+                    <p className="text-sm text-gray-600 italic">{item.diagram_data}</p>
+                  )}
+                  <textarea value={item.diagram_description ?? ''} onChange={(e) => updateItem(idx, 'diagram_description', e.target.value)}
+                    className="input mt-2" rows={1} placeholder="Diagram description (optional)" />
+                </div>
+              )}
+              {(!item.diagram_type || item.diagram_type === 'none') && (
+                <textarea value={item.diagram_description ?? ''} onChange={(e) => updateItem(idx, 'diagram_description', e.target.value)}
+                  className="input" rows={1} placeholder="Diagram / chart / picture description (optional)" />
+              )}
             </div>
           ))}
 

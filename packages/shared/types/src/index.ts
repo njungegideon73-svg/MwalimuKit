@@ -79,6 +79,8 @@ export interface AssessmentItem {
   answer_guide?: string | null;
   max_level: 1 | 2 | 3 | 4;
   diagram_description?: string | null;
+  diagram_type?: string | null;
+  diagram_data?: string | null;
 }
 
 // ---------- Assessment template ----------

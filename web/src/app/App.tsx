@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '@/lib/auth-store';
 import { useFeatureFlags } from '@/lib/feature-flags';
 import { apiFetch } from '@/lib/api';
+import { useSessionTimeout } from '@/hooks/useSessionTimeout';
 import { LoginPage } from '@/pages/LoginPage';
 import { SignupPage } from '@/pages/SignupPage';
 import { DashboardPage } from '@/pages/DashboardPage';
@@ -23,6 +24,10 @@ import { ReportCardPage } from '@/pages/ReportCardPage';
 import { Layout } from '@/components/Layout';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { RoleBasedRoute } from '@/components/RoleBasedRoute';
+import { SBADashboardPage } from '@/pages/SBADashboardPage';
+import { SBAMarksEntryPage } from '@/pages/SBAMarksEntryPage';
+import { SBAReportCardPage } from '@/pages/SBAReportCardPage';
+import { SBAClassAnalyticsPage } from '@/pages/SBAClassAnalyticsPage';
 
 // Admin Console Pages
 import { SuperAdminDashboardPage } from '@/pages/admin/SuperAdminDashboardPage';
@@ -37,10 +42,48 @@ import { TeachersManagementPage } from '@/pages/school-admin/TeachersManagementP
 import { SchoolLearnersManagementPage } from '@/pages/school-admin/SchoolLearnersManagementPage';
 import { SchoolClassesManagementPage } from '@/pages/school-admin/SchoolClassesManagementPage';
 
-import { SBADashboardPage } from '@/pages/SBADashboardPage';
-import { SBAMarksEntryPage } from '@/pages/SBAMarksEntryPage';
-import { SBAReportCardPage } from '@/pages/SBAReportCardPage';
-import { SBAClassAnalyticsPage } from '@/pages/SBAClassAnalyticsPage';
+function InactivityModal() {
+  const { isWarning, countdown, dismissWarning } = useSessionTimeout({
+    onTimeout: () => {
+      window.location.href = '/login';
+    },
+  });
+  const logout = useAuthStore((s) => s.logout);
+
+  if (!isWarning) return null;
+
+  const minutes = Math.floor(countdown / 60);
+  const seconds = countdown % 60;
+
+  const handleStayLoggedIn = () => {
+    dismissWarning();
+  };
+
+  const handleLogout = async () => {
+    await logout();
+    window.location.href = '/login';
+  };
+
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50">
+      <div className="bg-white rounded-xl shadow-xl p-6 max-w-md w-full mx-4">
+        <h2 className="text-xl font-bold text-gray-900 mb-2">Session Timeout Warning</h2>
+        <p className="text-gray-600 mb-4">
+          You have been inactive for 30 minutes. For your security, you will be automatically logged out in{' '}
+          <span className="font-bold text-red-600">{minutes}:{seconds.toString().padStart(2, '0')}</span>.
+        </p>
+        <div className="flex gap-3">
+          <button onClick={handleStayLoggedIn} className="btn-primary flex-1">
+            Stay Logged In
+          </button>
+          <button onClick={handleLogout} className="btn-secondary flex-1">
+            Log Out Now
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function CapacitorBackButton() {
   const navigate = useNavigate();
@@ -80,6 +123,12 @@ export default function App() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const setFlags = useFeatureFlags((s) => s.setFlags);
 
+  useSessionTimeout({
+    onTimeout: () => {
+      window.location.href = '/login';
+    },
+  });
+
   useEffect(() => {
     hydrate();
   }, [hydrate]);
@@ -105,6 +154,7 @@ export default function App() {
 
   return (
     <>
+      <InactivityModal />
       <CapacitorBackButton />
       <Routes>
       <Route path="/login" element={<LoginPage />} />

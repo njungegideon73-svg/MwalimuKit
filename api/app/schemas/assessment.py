@@ -30,6 +30,8 @@ class AssessmentItem(BaseModel):
     answer_guide: str | None = None
     max_level: int = 4
     diagram_description: str | None = None
+    diagram_type: str | None = None
+    diagram_data: str | None = None
 
 
 class GenerateAssessmentRequest(BaseModel):

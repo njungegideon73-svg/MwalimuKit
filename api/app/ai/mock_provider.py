@@ -1,7 +1,9 @@
 """Deterministic stub provider."""
 from __future__ import annotations
 
-from app.ai.provider import GeneratedAssessment
+import random
+
+from app.ai.provider import GeneratedAssessment, _should_include_diagram
 
 
 class MockProvider:
@@ -21,9 +23,18 @@ class MockProvider:
     ) -> GeneratedAssessment:
         items: list[dict] = []
         for i in range(1, item_count + 1):
-            diagram_desc = ""
+            diagram_type = "none"
+            diagram_data = ""
             if include_diagrams:
-                diagram_desc = f"A simple diagram or chart related to {sub_strand} for {grade_level} learners."
+                should_have, dtype = _should_include_diagram(learning_area)
+                if should_have and dtype:
+                    diagram_type = dtype
+                    if dtype == "chart":
+                        diagram_data = '{"type": "bar", "labels": ["A", "B", "C"], "values": [10, 20, 15], "title": "Sample Data"}'
+                    elif dtype == "flowchart":
+                        diagram_data = "flowchart TD\n    A[Start] --> B[Process]\n    B --> C[End]"
+                    elif dtype == "diagram":
+                        diagram_data = f"A labeled diagram showing key parts of {sub_strand}"
             items.append(
                 {
                     "id": f"itm_{i:02d}",
@@ -35,7 +46,9 @@ class MockProvider:
                     ),
                     "answer_guide": "Edit me.",
                     "max_level": 4,
-                    "diagram_description": diagram_desc,
+                    "diagram_description": diagram_data if diagram_type == "diagram" else "",
+                    "diagram_type": diagram_type,
+                    "diagram_data": diagram_data,
                 }
             )
         rubric = {

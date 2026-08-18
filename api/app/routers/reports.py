@@ -273,6 +273,10 @@ async def sba_report_card_pdf(
     db: AsyncSession = Depends(get_db),
     academic_year: str = Query(...),
     format: str = Query("pdf"),
+    school_closed_date: str | None = Query(None),
+    next_term_begins_date: str | None = Query(None),
+    class_teacher_remarks: str | None = Query(None),
+    principal_remarks: str | None = Query(None),
 ):
     if format != "pdf":
         raise HTTPException(status_code=400, detail="Only PDF format is supported")
@@ -399,6 +403,7 @@ async def sba_report_card_pdf(
     subtitle_style = ParagraphStyle("Sub", parent=styles["Normal"], fontSize=11, alignment=1, spaceAfter=4)
     body_style = styles["Normal"]
     center_style = ParagraphStyle("Center", parent=body_style, fontSize=11, alignment=1, spaceAfter=4)
+    small_style = ParagraphStyle("Small", parent=body_style, fontSize=9, spaceAfter=2)
 
     school_name = school.name if school else "School"
     school_code = school.code if school else ""
@@ -490,12 +495,47 @@ async def sba_report_card_pdf(
         f"<b>Overall Average: {overall_average}%</b>",
         pct_style,
     ))
-    elements.append(Spacer(1, 1.5 * cm))
+    elements.append(Spacer(1, 0.5 * cm))
 
-    # Signature line
+    # Term dates
+    if school_closed_date or next_term_begins_date:
+        elements.append(Paragraph("<b>Term Dates</b>", ParagraphStyle("Section", parent=body_style, fontSize=12, spaceAfter=4)))
+        if school_closed_date:
+            elements.append(Paragraph(f"School Closed On: {school_closed_date}", body_style))
+        if next_term_begins_date:
+            elements.append(Paragraph(f"Next Term Begins On: {next_term_begins_date}", body_style))
+        elements.append(Spacer(1, 0.3 * cm))
+
+    # Grade descriptors
+    elements.append(Paragraph("<b>Grade Descriptors</b>", ParagraphStyle("Section", parent=body_style, fontSize=12, spaceAfter=4)))
+    grade_descriptors = [
+        "A (80-100%): Exceeding expectation",
+        "B (65-79%): Meeting expectation",
+        "C (50-64%): Approaching expectation",
+        "D (30-49%): Below expectation",
+        "E (0-29%): Far below expectation",
+    ]
+    for desc in grade_descriptors:
+        elements.append(Paragraph(desc, small_style))
+    elements.append(Spacer(1, 0.3 * cm))
+
+    # Remarks
+    if class_teacher_remarks or principal_remarks:
+        elements.append(Paragraph("<b>Remarks</b>", ParagraphStyle("Section", parent=body_style, fontSize=12, spaceAfter=4)))
+        if class_teacher_remarks:
+            elements.append(Paragraph(f"<b>Class Teacher:</b> {class_teacher_remarks}", body_style))
+        if principal_remarks:
+            elements.append(Paragraph(f"<b>Principal:</b> {principal_remarks}", body_style))
+        elements.append(Spacer(1, 0.3 * cm))
+
+    # Signatures
+    elements.append(Spacer(1, 0.5 * cm))
     sig_style = ParagraphStyle("Sig", parent=body_style, fontSize=10)
     elements.append(Paragraph("_" * 40 + "          " + "_" * 20, sig_style))
     elements.append(Paragraph("Class Teacher Signature                Date", sig_style))
+    elements.append(Spacer(1, 0.4 * cm))
+    elements.append(Paragraph("_" * 40 + "          " + "_" * 20, sig_style))
+    elements.append(Paragraph("Principal Signature                    Date", sig_style))
 
     doc.build(elements)
     buffer.seek(0)

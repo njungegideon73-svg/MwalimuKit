@@ -44,6 +44,12 @@ export function SBAReportCardPage() {
   const [selectedClassId, setSelectedClassId] = useState('');
   const [selectedLearnerId, setSelectedLearnerId] = useState('');
   const [academicYear, setAcademicYear] = useState(currentYear);
+  const [schoolClosedDate, setSchoolClosedDate] = useState('');
+  const [nextTermBeginsDate, setNextTermBeginsDate] = useState('');
+  const [classTeacherRemarks, setClassTeacherRemarks] = useState('');
+  const [principalRemarks, setPrincipalRemarks] = useState('');
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isGeneratingPreview, setIsGeneratingPreview] = useState(false);
 
   const { data: classes = [] } = useQuery<SchoolClass[]>({
     queryKey: ['classes'],
@@ -66,8 +72,16 @@ export function SBAReportCardPage() {
     if (!report) return;
     try {
       const tokens = await getTokens();
+      const params = new URLSearchParams({
+        academic_year: academicYear,
+        format: 'pdf',
+        ...(schoolClosedDate && { school_closed_date: schoolClosedDate }),
+        ...(nextTermBeginsDate && { next_term_begins_date: nextTermBeginsDate }),
+        ...(classTeacherRemarks && { class_teacher_remarks: classTeacherRemarks }),
+        ...(principalRemarks && { principal_remarks: principalRemarks }),
+      });
       const resp = await fetch(
-        `${import.meta.env.VITE_API_URL}/reports/report-card/${report.learner_id}?academic_year=${academicYear}&format=pdf`,
+        `/api/v1/reports/report-card/${report.learner_id}?${params.toString()}`,
         {
           headers: { Authorization: `Bearer ${tokens?.access}` },
         }
@@ -78,10 +92,43 @@ export function SBAReportCardPage() {
       const a = document.createElement('a');
       a.href = url;
       a.download = `report_card_${report.learner_name.replace(/\s+/g, '_')}_${academicYear}.pdf`;
+      document.body.appendChild(a);
       a.click();
+      document.body.removeChild(a);
       URL.revokeObjectURL(url);
+      toast.success('PDF downloaded');
     } catch {
       toast.error('Failed to download PDF. The endpoint may not exist yet.');
+    }
+  };
+
+  const handlePreview = async () => {
+    if (!report) return;
+    setIsGeneratingPreview(true);
+    try {
+      const tokens = await getTokens();
+      const params = new URLSearchParams({
+        academic_year: academicYear,
+        format: 'pdf',
+        ...(schoolClosedDate && { school_closed_date: schoolClosedDate }),
+        ...(nextTermBeginsDate && { next_term_begins_date: nextTermBeginsDate }),
+        ...(classTeacherRemarks && { class_teacher_remarks: classTeacherRemarks }),
+        ...(principalRemarks && { principal_remarks: principalRemarks }),
+      });
+      const resp = await fetch(
+        `/api/v1/reports/report-card/${report.learner_id}?${params.toString()}`,
+        {
+          headers: { Authorization: `Bearer ${tokens?.access}` },
+        }
+      );
+      if (!resp.ok) throw new Error('Failed');
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      setPreviewUrl(url);
+    } catch {
+      toast.error('Failed to generate preview');
+    } finally {
+      setIsGeneratingPreview(false);
     }
   };
 
@@ -133,6 +180,57 @@ export function SBAReportCardPage() {
         </div>
       </div>
 
+      {/* Report Card Options */}
+      {report && (
+        <div className="no-print card">
+          <h2 className="font-semibold text-gray-900 mb-4">Report Card Options</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="label">School Closed On</label>
+              <input type="date" className="input" value={schoolClosedDate} onChange={(e) => setSchoolClosedDate(e.target.value)} />
+            </div>
+            <div>
+              <label className="label">Next Term Begins On</label>
+              <input type="date" className="input" value={nextTermBeginsDate} onChange={(e) => setNextTermBeginsDate(e.target.value)} />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="label">Class Teacher Remarks</label>
+              <textarea className="input" rows={2} value={classTeacherRemarks} onChange={(e) => setClassTeacherRemarks(e.target.value)} placeholder="Enter class teacher remarks..." />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="label">Principal Remarks</label>
+              <textarea className="input" rows={2} value={principalRemarks} onChange={(e) => setPrincipalRemarks(e.target.value)} placeholder="Enter principal remarks..." />
+            </div>
+          </div>
+          <div className="flex gap-2 mt-4">
+            <button type="button" onClick={handlePreview} disabled={isGeneratingPreview} className="btn-secondary text-sm">
+              {isGeneratingPreview ? 'Generating...' : 'Preview Report Card'}
+            </button>
+            <button type="button" onClick={handleDownloadPDF} className="btn-primary text-sm">
+              <Download className="h-4 w-4" /> Download PDF
+            </button>
+            <button type="button" onClick={handlePrint} className="btn-secondary text-sm">
+              <Printer className="h-4 w-4" /> Print
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Preview */}
+      {previewUrl && (
+        <div className="no-print card">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-semibold text-gray-900">Preview</h2>
+            <button type="button" onClick={() => { URL.revokeObjectURL(previewUrl); setPreviewUrl(null); }} className="text-sm text-gray-500 hover:text-gray-700">
+              Close Preview
+            </button>
+          </div>
+          <div className="border border-gray-200 rounded-lg overflow-hidden bg-gray-100">
+            <iframe src={previewUrl} title="Report Card Preview" className="w-full h-[600px]" />
+          </div>
+        </div>
+      )}
+
       {isLoading && selectedLearnerId && (
         <div className="space-y-4 animate-pulse">
           <div className="h-64 bg-gray-200 rounded-xl" />
@@ -141,16 +239,6 @@ export function SBAReportCardPage() {
 
       {report && (
         <>
-          {/* Action buttons */}
-          <div className="no-print flex gap-2">
-            <button onClick={handleDownloadPDF} className="btn-secondary text-sm">
-              <Download className="h-4 w-4" /> Download PDF
-            </button>
-            <button onClick={handlePrint} className="btn-secondary text-sm">
-              <Printer className="h-4 w-4" /> Print
-            </button>
-          </div>
-
           {/* Report Card */}
           <div className="bg-white border border-gray-200 rounded-xl p-8 print:shadow-none">
             {/* Header */}
