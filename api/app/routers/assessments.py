@@ -17,6 +17,7 @@ from app.schemas.assessment import (
     AssessmentIn, AssessmentOut, AssessmentUpdate,
     GenerateAssessmentRequest, GenerateAssessmentResponse,
 )
+from app.utils.activity_logger import log_activity
 try:
     from docx import Document
     from docx.shared import Inches, Pt
@@ -114,6 +115,13 @@ async def create_assessment(
     db.add(a)
     await db.commit()
     await db.refresh(a)
+    await log_activity(
+        db,
+        user_id=user.id,
+        school_id=user.school_id,
+        action="assessment.created",
+        details={"name": a.name, "learning_area_code": payload.learning_area_code},
+    )
     return _to_out(a)
 
 
@@ -169,6 +177,13 @@ async def duplicate_assessment(
     db.add(dupe)
     await db.commit()
     await db.refresh(dupe)
+    await log_activity(
+        db,
+        user_id=user.id,
+        school_id=user.school_id,
+        action="assessment.duplicated",
+        details={"name": dupe.name, "original_id": str(original.id)},
+    )
     return _to_out(dupe)
 
 
@@ -207,6 +222,13 @@ async def update_assessment(
 
     await db.commit()
     await db.refresh(a)
+    await log_activity(
+        db,
+        user_id=user.id,
+        school_id=user.school_id,
+        action="assessment.updated",
+        details={"name": a.name},
+    )
     return await _to_out_async(a, db)
 
 
@@ -230,6 +252,13 @@ async def toggle_favourite(
     a.is_favourite = not a.is_favourite
     await db.commit()
     await db.refresh(a)
+    await log_activity(
+        db,
+        user_id=user.id,
+        school_id=user.school_id,
+        action="assessment.favourited",
+        details={"name": a.name, "is_favourite": a.is_favourite},
+    )
     return await _to_out_async(a, db)
 
 
@@ -247,6 +276,13 @@ async def soft_delete(
     if a is None:
         raise HTTPException(status_code=404, detail="Assessment not found")
     a.deleted_at = datetime.now(tz=timezone.utc)
+    await log_activity(
+        db,
+        user_id=user.id,
+        school_id=user.school_id,
+        action="assessment.deleted",
+        details={"name": a.name},
+    )
     await db.commit()
     return {"deleted": True}
 

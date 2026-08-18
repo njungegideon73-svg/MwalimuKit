@@ -8,6 +8,7 @@ from app.core.deps import CurrentUser
 from app.core.rate_limit import rate_limit_login
 from app.core.security import hash_password, verify_password
 from app.models.school import School
+from app.models.user import User
 from app.schemas.auth import (
     ChangePasswordRequest, ChangeSchoolCodeRequest,
     LoginRequest, RefreshRequest, SignupRequest, TokenPair,
@@ -15,6 +16,7 @@ from app.schemas.auth import (
 from app.services.auth import login as svc_login
 from app.services.auth import refresh_tokens as svc_refresh
 from app.services.auth import signup as svc_signup
+from app.utils.activity_logger import log_activity
 
 
 router = APIRouter()
@@ -36,7 +38,19 @@ async def login(
     _rate: None = Depends(rate_limit_login),
 ) -> TokenPair:
     try:
-        return await svc_login(db, email=payload.email, password=payload.password)
+        result = await svc_login(db, email=payload.email, password=payload.password)
+        user = (
+            await db.execute(select(User).where(User.email == payload.email))
+        ).scalar_one_or_none()
+        if user:
+            await log_activity(
+                db,
+                user_id=user.id,
+                school_id=user.school_id,
+                action="auth.login",
+                details={"email": user.email},
+            )
+        return result
     except ValueError as exc:
         raise HTTPException(status_code=401, detail=str(exc)) from None
 

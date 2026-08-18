@@ -58,3 +58,12 @@ class LearnerWithClassName(BaseModel):
     gender: str | None
     deleted_at: str | None
     class_name: str
+
+
+class ActivityLogOut(BaseModel):
+    id: UUID
+    user_id: UUID | None
+    school_id: UUID | None
+    action: str
+    details: dict | None
+    created_at: str

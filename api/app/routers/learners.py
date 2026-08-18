@@ -11,6 +11,7 @@ from app.models.learner import Learner
 from app.models.school_class import SchoolClass
 from app.models.user import UserRole
 from app.schemas.classes import LearnerBulkIn, LearnerIn, LearnerOut, LearnerUpdate, LearnerWithClassName
+from app.utils.activity_logger import log_activity
 
 
 router = APIRouter()
@@ -106,6 +107,13 @@ async def add_learner(payload: LearnerIn, user: CurrentUser, db: AsyncSession = 
     db.add(l)
     await db.commit()
     await db.refresh(l)
+    await log_activity(
+        db,
+        user_id=user.id,
+        school_id=user.school_id,
+        action="learner.created",
+        details={"full_name": l.full_name, "class_id": str(l.class_id)},
+    )
     return _to_out(l)
 
 
@@ -134,6 +142,13 @@ async def bulk_add(payload: LearnerBulkIn, user: CurrentUser, db: AsyncSession =
     await db.commit()
     for l in learners:
         await db.refresh(l)
+    await log_activity(
+        db,
+        user_id=user.id,
+        school_id=user.school_id,
+        action="learner.bulk_created",
+        details={"count": len(learners), "class_id": str(payload.class_id)},
+    )
     return [_to_out(l) for l in learners]
 
 
@@ -157,6 +172,13 @@ async def update_learner(
     l.gender = payload.gender
     await db.commit()
     await db.refresh(l)
+    await log_activity(
+        db,
+        user_id=user.id,
+        school_id=user.school_id,
+        action="learner.updated",
+        details={"full_name": l.full_name},
+    )
     return _to_out(l)
 
 
@@ -177,6 +199,13 @@ async def delete_learner(
     if l is None:
         raise HTTPException(status_code=404, detail="Learner not found")
     l.deleted_at = datetime.now(timezone.utc)
+    await log_activity(
+        db,
+        user_id=user.id,
+        school_id=user.school_id,
+        action="learner.deleted",
+        details={"full_name": l.full_name},
+    )
     await db.commit()
     return {"ok": True}
 

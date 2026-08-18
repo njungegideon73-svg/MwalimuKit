@@ -11,6 +11,7 @@ from app.models.curriculum import LearningArea
 from app.models.school_class import SchoolClass
 from app.models.user import UserRole
 from app.schemas.classes import ClassIn, ClassOut
+from app.utils.activity_logger import log_activity
 
 
 router = APIRouter()
@@ -62,11 +63,18 @@ async def create_class(payload: ClassIn, user: CurrentUser, db: AsyncSession = D
         teacher_id=user.id,
         name=payload.name,
         grade_level=payload.grade_level,
-        learning_area_ids=[str(i) for i in la_ids],
+        learning_area_ids=la_ids,
     )
     db.add(c)
     await db.commit()
     await db.refresh(c)
+    await log_activity(
+        db,
+        user_id=user.id,
+        school_id=user.school_id,
+        action="class.created",
+        details={"name": c.name, "grade_level": c.grade_level},
+    )
     return await _to_out_async(c, db)
 
 
@@ -99,11 +107,11 @@ async def get_class(class_id: UUID, user: CurrentUser, db: AsyncSession = Depend
 
 
 async def _resolve_la_codes_from_ids(
-    db: AsyncSession, la_ids: list[str]
+    db: AsyncSession, la_ids: list[str | UUID]
 ) -> list[str]:
     if not la_ids:
         return []
-    uuid_ids = [UUID(i) for i in la_ids if i]
+    uuid_ids = [i if isinstance(i, UUID) else UUID(i) for i in la_ids if i]
     if not uuid_ids:
         return []
     rows = (

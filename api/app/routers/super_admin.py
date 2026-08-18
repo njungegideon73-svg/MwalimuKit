@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, EmailStr, Field
@@ -12,11 +12,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.db import get_db
 from app.core.deps import SuperAdminUser
 from app.core.security import hash_password
+from app.models.activity_log import ActivityLog
 from app.models.learner import Learner
 from app.models.school import School
 from app.models.school_class import SchoolClass
 from app.models.user import User, UserRole
-from app.schemas.classes import LearnerOut
+from app.schemas.classes import ActivityLogOut, LearnerOut
+from app.utils.activity_logger import log_activity
 
 
 router = APIRouter()
@@ -104,6 +106,17 @@ class FeatureFlagUpdate(BaseModel):
     value: bool | int | str
 
 
+class DashboardOut(BaseModel):
+    total_schools: int
+    total_users: int
+    total_teachers: int
+    total_school_admins: int
+    total_super_admins: int
+    total_learners: int
+    total_classes: int
+    recent_activities: list[ActivityLogOut]
+
+
 # ── School Management ────────────────────────────────────────────────────────
 
 @router.get("/schools", response_model=list[SchoolOut])
@@ -156,6 +169,13 @@ async def create_school(
     db.add(school)
     await db.commit()
     await db.refresh(school)
+    await log_activity(
+        db,
+        user_id=admin.id,
+        school_id=school.id,
+        action="school.created",
+        details={"name": school.name, "code": school.code},
+    )
     return SchoolOut(
         id=str(school.id),
         name=school.name,
@@ -196,6 +216,13 @@ async def update_school(
 
     await db.commit()
     await db.refresh(school)
+    await log_activity(
+        db,
+        user_id=admin.id,
+        school_id=school.id,
+        action="school.updated",
+        details={"name": school.name, "code": school.code},
+    )
     return SchoolOut(
         id=str(school.id),
         name=school.name,
@@ -230,6 +257,13 @@ async def delete_school(
         )
 
     await db.delete(school)
+    await log_activity(
+        db,
+        user_id=admin.id,
+        school_id=school.id,
+        action="school.deleted",
+        details={"name": school.name, "code": school.code},
+    )
     await db.commit()
     return {"ok": True, "message": "School deleted"}
 
@@ -315,6 +349,13 @@ async def create_user(
     db.add(user)
     await db.commit()
     await db.refresh(user)
+    await log_activity(
+        db,
+        user_id=admin.id,
+        school_id=user.school_id,
+        action="user.created",
+        details={"email": user.email, "role": str(user.role.value if hasattr(user.role, "value") else user.role)},
+    )
     return UserOut(
         id=str(user.id),
         school_id=str(user.school_id),
@@ -353,6 +394,13 @@ async def update_user(
 
     await db.commit()
     await db.refresh(user)
+    await log_activity(
+        db,
+        user_id=admin.id,
+        school_id=user.school_id,
+        action="user.updated",
+        details={"email": user.email, "role": str(user.role.value if hasattr(user.role, "value") else user.role)},
+    )
     return UserOut(
         id=str(user.id),
         school_id=str(user.school_id),
@@ -380,6 +428,13 @@ async def deactivate_user(
         raise HTTPException(status_code=400, detail="Cannot deactivate yourself")
 
     user.is_active = False
+    await log_activity(
+        db,
+        user_id=admin.id,
+        school_id=user.school_id,
+        action="user.deactivated",
+        details={"email": user.email},
+    )
     await db.commit()
     return {"ok": True, "message": "User deactivated"}
 
@@ -446,6 +501,13 @@ async def create_learner(
     db.add(learner)
     await db.commit()
     await db.refresh(learner)
+    await log_activity(
+        db,
+        user_id=admin.id,
+        school_id=learner.school_id,
+        action="learner.created",
+        details={"full_name": learner.full_name, "class_id": str(learner.class_id)},
+    )
     return LearnerOut(
         id=str(learner.id),
         school_id=str(learner.school_id),
@@ -483,6 +545,13 @@ async def update_learner(
 
     await db.commit()
     await db.refresh(learner)
+    await log_activity(
+        db,
+        user_id=admin.id,
+        school_id=learner.school_id,
+        action="learner.updated",
+        details={"full_name": learner.full_name, "class_id": str(learner.class_id)},
+    )
     return LearnerOut(
         id=str(learner.id),
         school_id=str(learner.school_id),
@@ -507,6 +576,13 @@ async def delete_learner(
         raise HTTPException(status_code=404, detail="Learner not found")
 
     learner.deleted_at = datetime.now(timezone.utc)
+    await log_activity(
+        db,
+        user_id=admin.id,
+        school_id=learner.school_id,
+        action="learner.deleted",
+        details={"full_name": learner.full_name},
+    )
     await db.commit()
     return {"ok": True, "message": "Learner deleted"}
 
@@ -545,3 +621,90 @@ async def get_system_stats(
         total_learners=total_learners,
         total_classes=total_classes,
     )
+
+
+@router.get("/dashboard", response_model=DashboardOut)
+async def get_dashboard(
+    admin: SuperAdminUser,
+    db: AsyncSession = Depends(get_db),
+    limit: int = Query(default=20, ge=1, le=100),
+) -> DashboardOut:
+    total_schools = (await db.execute(select(func.count()).select_from(School))).scalar() or 0
+    total_users = (await db.execute(select(func.count()).select_from(User))).scalar() or 0
+    total_teachers = (
+        await db.execute(select(func.count()).select_from(User).where(User.role == UserRole.teacher))
+    ).scalar() or 0
+    total_school_admins = (
+        await db.execute(select(func.count()).select_from(User).where(User.role == UserRole.school_admin))
+    ).scalar() or 0
+    total_super_admins = (
+        await db.execute(select(func.count()).select_from(User).where(User.role == UserRole.super_admin))
+    ).scalar() or 0
+    total_learners = (
+        await db.execute(select(func.count()).select_from(Learner).where(Learner.deleted_at.is_(None)))
+    ).scalar() or 0
+    total_classes = (
+        await db.execute(select(func.count()).select_from(SchoolClass).where(SchoolClass.deleted_at.is_(None)))
+    ).scalar() or 0
+
+    recent_activities = (
+        await db.execute(
+            select(ActivityLog).order_by(ActivityLog.created_at.desc()).limit(limit)
+        )
+    ).scalars().all()
+
+    return DashboardOut(
+        total_schools=total_schools,
+        total_users=total_users,
+        total_teachers=total_teachers,
+        total_school_admins=total_school_admins,
+        total_super_admins=total_super_admins,
+        total_learners=total_learners,
+        total_classes=total_classes,
+        recent_activities=[
+            ActivityLogOut(
+                id=a.id,
+                user_id=a.user_id,
+                school_id=a.school_id,
+                action=a.action,
+                details=a.details,
+                created_at=a.created_at.isoformat(),
+            )
+            for a in recent_activities
+        ],
+    )
+
+
+@router.get("/activities", response_model=list[ActivityLogOut])
+async def list_activities(
+    admin: SuperAdminUser,
+    db: AsyncSession = Depends(get_db),
+    school_id: str | None = Query(default=None),
+    user_id: str | None = Query(default=None),
+    action: str | None = Query(default=None),
+    search: str | None = Query(default=None),
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=50, ge=1, le=200),
+) -> list[ActivityLogOut]:
+    query = select(ActivityLog).order_by(ActivityLog.created_at.desc())
+    if school_id:
+        query = query.where(ActivityLog.school_id == school_id)
+    if user_id:
+        query = query.where(ActivityLog.user_id == user_id)
+    if action:
+        query = query.where(ActivityLog.action == action)
+    if search:
+        query = query.where(ActivityLog.action.ilike(f"%{search}%") | ActivityLog.details.astext.ilike(f"%{search}%"))
+    query = query.offset(offset).limit(limit)
+    rows = (await db.execute(query)).scalars().all()
+    return [
+        ActivityLogOut(
+            id=a.id,
+            user_id=a.user_id,
+            school_id=a.school_id,
+            action=a.action,
+            details=a.details,
+            created_at=a.created_at.isoformat(),
+        )
+        for a in rows
+    ]
