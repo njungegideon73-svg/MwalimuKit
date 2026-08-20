@@ -26,7 +26,7 @@ def create_app() -> FastAPI:
         CORSMiddleware,
         allow_origins=settings.cors_origins,
         allow_credentials=True,
-        allow_methods=["GET", "POST", "PATCH", "DELETE", "PUT"],
+        allow_methods=["GET", "POST", "PATCH", "DELETE", "PUT", "OPTIONS", "HEAD"],
         allow_headers=["Authorization", "Content-Type", "Accept"],
     )
 
@@ -39,7 +39,7 @@ def create_app() -> FastAPI:
             cache_logger_on_first_use=True,
         )
         log = structlog.get_logger()
-        log.info("mwalimukit.api.startup", env=settings.env, version="0.1.0")
+        log.info("mwalimukit.api.startup", env=settings.env, version="0.1.0", cors_origins=settings.cors_origins)
 
     app.include_router(health.router, tags=["health"])
     app.include_router(feature_flags.router, prefix="/api/v1", tags=["feature-flags"])

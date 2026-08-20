@@ -104,7 +104,7 @@ async def list_teachers(
     school_id = _require_school(admin)
     query = (
         select(User)
-        .where(User.school_id == school_id, User.role == UserRole.teacher)
+        .where(User.school_id == school_id, User.role == UserRole.teacher.value)
         .order_by(User.created_at.desc())
     )
     if search:
@@ -176,7 +176,7 @@ async def update_teacher(
             select(User).where(
                 User.id == teacher_id,
                 User.school_id == school_id,
-                User.role == UserRole.teacher,
+                User.role == UserRole.teacher.value,
             )
         )
     ).scalar_one_or_none()
@@ -213,7 +213,7 @@ async def deactivate_teacher(
             select(User).where(
                 User.id == teacher_id,
                 User.school_id == school_id,
-                User.role == UserRole.teacher,
+                User.role == UserRole.teacher.value,
             )
         )
     ).scalar_one_or_none()
@@ -591,7 +591,7 @@ async def get_school_stats(
         await db.execute(
             select(func.count()).select_from(User).where(
                 User.school_id == school_id,
-                User.role == UserRole.teacher,
+                User.role == UserRole.teacher.value,
             )
         )
     ).scalar() or 0

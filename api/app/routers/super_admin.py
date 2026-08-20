@@ -597,13 +597,13 @@ async def get_system_stats(
     total_schools = (await db.execute(select(func.count()).select_from(School))).scalar() or 0
     total_users = (await db.execute(select(func.count()).select_from(User))).scalar() or 0
     total_teachers = (
-        await db.execute(select(func.count()).select_from(User).where(User.role == UserRole.teacher))
+        await db.execute(select(func.count()).select_from(User).where(User.role == UserRole.teacher.value))
     ).scalar() or 0
     total_school_admins = (
-        await db.execute(select(func.count()).select_from(User).where(User.role == UserRole.school_admin))
+        await db.execute(select(func.count()).select_from(User).where(User.role == UserRole.school_admin.value))
     ).scalar() or 0
     total_super_admins = (
-        await db.execute(select(func.count()).select_from(User).where(User.role == UserRole.super_admin))
+        await db.execute(select(func.count()).select_from(User).where(User.role == UserRole.super_admin.value))
     ).scalar() or 0
     total_learners = (
         await db.execute(select(func.count()).select_from(Learner).where(Learner.deleted_at.is_(None)))
@@ -632,13 +632,13 @@ async def get_dashboard(
     total_schools = (await db.execute(select(func.count()).select_from(School))).scalar() or 0
     total_users = (await db.execute(select(func.count()).select_from(User))).scalar() or 0
     total_teachers = (
-        await db.execute(select(func.count()).select_from(User).where(User.role == UserRole.teacher))
+        await db.execute(select(func.count()).select_from(User).where(User.role == UserRole.teacher.value))
     ).scalar() or 0
     total_school_admins = (
-        await db.execute(select(func.count()).select_from(User).where(User.role == UserRole.school_admin))
+        await db.execute(select(func.count()).select_from(User).where(User.role == UserRole.school_admin.value))
     ).scalar() or 0
     total_super_admins = (
-        await db.execute(select(func.count()).select_from(User).where(User.role == UserRole.super_admin))
+        await db.execute(select(func.count()).select_from(User).where(User.role == UserRole.super_admin.value))
     ).scalar() or 0
     total_learners = (
         await db.execute(select(func.count()).select_from(Learner).where(Learner.deleted_at.is_(None)))
