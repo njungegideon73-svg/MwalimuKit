@@ -12,7 +12,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
   // Redirect super admins to admin console when they try to access root
   if (user?.role === 'super_admin' && location.pathname === '/') {
-    return <Navigate to="/admin" replace />;
+    return <Navigate to="/super-admin" replace />;
   }
 
   // Redirect school admins to school admin console when they try to access root

@@ -1,4 +1,4 @@
-"""Score batching with last-write-wins."""
+"""Score batching with last-write-wins + conflict reporting."""
 from __future__ import annotations
 
 from datetime import datetime
@@ -8,13 +8,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.run import AssessmentRun
 from app.models.score import Score
-from app.schemas.run_score import ScoreBatchIn, ScoreBatchResult, ScoreIn
+from app.schemas.run_score import ScoreBatchIn, ScoreBatchResult
 
 
 async def upsert_scores(db: AsyncSession, school_id, batch: ScoreBatchIn) -> ScoreBatchResult:
     accepted = 0
     conflicts = 0
     rejected: list[dict] = []
+    conflicted_rows: list[dict] = []
 
     run_ids = {s.run_id for s in batch.scores}
     if run_ids:
@@ -37,7 +38,6 @@ async def upsert_scores(db: AsyncSession, school_id, batch: ScoreBatchIn) -> Sco
         try:
             updated_at = datetime.fromisoformat(s.updated_at.replace("Z", "+00:00")).replace(tzinfo=None)
 
-            # Check for conflict: does a newer version already exist?
             existing = (
                 await db.execute(
                     select(Score).where(
@@ -51,6 +51,14 @@ async def upsert_scores(db: AsyncSession, school_id, batch: ScoreBatchIn) -> Sco
             if existing and existing.updated_at > updated_at:
                 conflicts += 1
                 accepted += 1
+                conflicted_rows.append({
+                    "id": str(s.id),
+                    "learner_id": str(s.learner_id),
+                    "item_id": s.item_id,
+                    "server_level": existing.level,
+                    "client_level": s.level,
+                    "server_updated_at": existing.updated_at.isoformat(),
+                })
                 continue
 
             if existing:
@@ -74,4 +82,9 @@ async def upsert_scores(db: AsyncSession, school_id, batch: ScoreBatchIn) -> Sco
             rejected.append({"id": str(s.id), "reason": str(exc)})
 
     await db.commit()
-    return ScoreBatchResult(accepted=accepted, conflicts=conflicts, rejected=rejected)
+    return ScoreBatchResult(
+        accepted=accepted,
+        conflicts=conflicts,
+        rejected=rejected,
+        conflicted_rows=conflicted_rows,
+    )

@@ -1,132 +1,107 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { ArrowLeft, Sparkles, Plus } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { ArrowLeft, Sparkles, Plus, Trash2, Search, CloudOff } from 'lucide-react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiFetch } from '@/lib/api';
-import { getCurriculum } from '@/lib/curriculum';
-import { useFeatureFlags } from '@/lib/feature-flags';
+import { useQueryClient, useMutation } from '@tanstack/react-query';
+import {
+  useCurriculum,
+  useAssessmentGeneration,
+  useAssessmentItems,
+  useNavigation,
+  useOnlineStatus,
+  assessmentFormSchema,
+} from '@/features/assess/hooks';
+import { createAssessment } from '@/features/assess/api';
 import { defaultRubric } from '@mwalimukit/rubrics';
 import { RubricEditor } from '@/components/RubricEditor';
 import { PromptHistoryPanel } from '@/components/PromptHistoryPanel';
-import { MermaidChart } from '@/components/MermaidChart';
-import { SimpleChart } from '@/components/SimpleChart';
-import toast from 'react-hot-toast';
+import {
+  StrandSelector,
+  ModeToggle,
+  AssessmentItemListEditor,
+} from '@/features/assess/components/AssessmentForm';
+import type { FormData } from '@/features/assess/hooks';
 import type { AssessmentItem, Rubric } from '@mwalimukit/types';
-
-const schema = z.object({
-  name: z.string().min(1, 'Assessment name is required'),
-  description: z.string().optional(),
-  mode: z.enum(['ai', 'manual']),
-  learning_area_code: z.string().min(1, 'Select a learning area'),
-  strand_code: z.string().min(1, 'Select a strand'),
-  sub_strand_code: z.string().min(1, 'Select a sub-strand'),
-  grade_level: z.string().min(1, 'Enter grade level'),
-  teacher_prompt: z.string().optional(),
-  item_count: z.coerce.number().int().min(1).max(20).default(5),
-  include_diagrams: z.boolean().default(false),
-});
-
-type FormData = z.infer<typeof schema>;
+import { useFeatureFlags } from '@/lib/feature-flags';
+import toast from 'react-hot-toast';
 
 export function AssessmentNewPage() {
-  const navigate = useNavigate();
+  const { goBack, goToAssessment } = useNavigation();
   const queryClient = useQueryClient();
-  const [items, setItems] = useState<AssessmentItem[]>([]);
-  const [rubric, setRubric] = useState<Rubric>(defaultRubric());
-  const [strandSearch, setStrandSearch] = useState('');
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const isOnline = useOnlineStatus();
+  const aiEnabled = useFeatureFlags((s) => s.ai_generation_enabled);
+  const {
+    items,
+    rubric,
+    setItems,
+    setRubric,
+  } = useAssessmentItems([], defaultRubric());
 
   const { register, handleSubmit, watch, setValue } = useForm<FormData>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(assessmentFormSchema),
     defaultValues: { mode: 'ai', grade_level: 'Grade 1' },
   });
 
   const selectedLA = watch('learning_area_code');
   const selectedStrand = watch('strand_code');
   const mode = watch('mode');
-  const aiEnabled = useFeatureFlags((s) => s.ai_generation_enabled);
+  const { generation } = useAssessmentGeneration();
+  const [strandSearch, setStrandSearch] = useState('');
 
-  const { data: curriculum, isLoading: curriculumLoading } = useQuery({
-    queryKey: ['curriculum'],
-    queryFn: getCurriculum,
-    staleTime: 5 * 60_000,
-  });
+  useEffect(() => {
+    if (!aiEnabled || !isOnline) setValue('mode', 'manual');
+  }, [aiEnabled, isOnline, setValue]);
 
-  const generateMutation = useMutation({
-    mutationFn: (data: FormData) =>
-      apiFetch<{ rubric: Rubric; items: AssessmentItem[] }>('/assessments/generate', {
-        method: 'POST',
-        json: {
-          learning_area_code: data.learning_area_code,
-          strand_code: data.strand_code,
-          sub_strand_codes: [data.sub_strand_code],
-          grade_level: data.grade_level,
-          teacher_prompt: data.teacher_prompt,
-          item_count: data.item_count,
-          include_diagrams: data.include_diagrams,
-        },
-      }),
-    onSuccess: (result) => {
-      setItems(result.items);
-      setRubric(result.rubric);
-      toast.success('Assessment generated!');
-    },
-    onError: () => toast.error('Failed to generate assessment'),
-  });
+  useEffect(() => {
+    setValue('strand_code', '');
+    setValue('sub_strand_code', '');
+  }, [selectedLA, setValue]);
+
+  useEffect(() => {
+    setValue('sub_strand_code', '');
+  }, [selectedStrand, setValue]);
+
+  useEffect(() => {
+    if (generation.data) {
+      setItems(generation.data.items as unknown as AssessmentItem[]);
+      setRubric(generation.data.rubric as unknown as Rubric);
+    }
+  }, [generation.data, setItems, setRubric]);
+
+  const { data: curriculum, isLoading: curriculumLoading } = useCurriculum();
 
   const saveMutation = useMutation({
     mutationFn: (data: FormData) =>
-      apiFetch<{ id: string }>('/assessments', {
-        method: 'POST',
-        json: {
-          name: data.name,
-          description: data.description,
-          learning_area_code: data.learning_area_code,
-          strand_code: data.strand_code,
-          sub_strand_codes: [data.sub_strand_code],
-          source: data.mode,
-          rubric,
-          items,
-          tags: [],
-          is_favourite: false,
-        },
+      createAssessment({
+        name: data.name,
+        description: data.description,
+        learning_area_code: data.learning_area_code,
+        strand_code: data.strand_code,
+        sub_strand_codes: [data.sub_strand_code],
+        source: data.mode,
+        rubric,
+        items,
+        tags: [],
+        is_favourite: false,
       }),
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['assessments'] });
       toast.success('Assessment saved!');
-      navigate(`/assessments/${result.id}`);
+      goToAssessment(result.id);
     },
     onError: () => toast.error('Failed to save assessment'),
   });
 
-  useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, []);
-
-  const filteredStrands = curriculum?.strands.filter((s) => {
-    if (s.learning_area_code !== selectedLA) return false;
-    if (!strandSearch) return true;
-    const q = strandSearch.toLowerCase();
-    return s.name.toLowerCase().includes(q) || s.code.toLowerCase().includes(q);
-  }) ?? [];
-  const filteredSubStrands = curriculum?.sub_strands.filter((s) => s.strand_code === selectedStrand) ?? [];
-
-  useEffect(() => { setValue('strand_code', ''); setValue('sub_strand_code', ''); }, [selectedLA, setValue]);
-  useEffect(() => { setValue('sub_strand_code', ''); }, [selectedStrand, setValue]);
-  useEffect(() => { if (!aiEnabled || !isOnline) setValue('mode', 'manual'); }, [aiEnabled, isOnline, setValue]);
-
   const handleGenerate = (data: FormData) => {
-    generateMutation.mutate(data);
+    generation.mutate({
+      learning_area_code: data.learning_area_code,
+      strand_code: data.strand_code,
+      sub_strand_codes: [data.sub_strand_code],
+      grade_level: data.grade_level,
+      teacher_prompt: data.teacher_prompt,
+      item_count: data.item_count,
+      include_diagrams: data.include_diagrams,
+    });
   };
 
   const handleSave = (data: FormData) => {
@@ -136,18 +111,6 @@ export function AssessmentNewPage() {
     }
     saveMutation.mutate(data);
   };
-
-  const addItem = () => {
-    setItems([...items, {
-      id: `itm_${String(items.length + 1).padStart(2, '0')}`,
-      criterion: rubric.criteria[0]?.id ?? 'accuracy',
-      stem: '', answer_guide: '', max_level: 4, diagram_description: '',
-    }]);
-  };
-
-  const removeItem = (idx: number) => setItems(items.filter((_, i) => i !== idx));
-  const updateItem = (idx: number, field: keyof AssessmentItem, value: string) =>
-    setItems(items.map((item, i) => (i === idx ? { ...item, [field]: value } : item)));
 
   if (curriculumLoading || !curriculum) {
     return (
@@ -160,7 +123,7 @@ export function AssessmentNewPage() {
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
-      <button onClick={() => navigate(-1)} className="btn-ghost text-sm">
+      <button onClick={goBack} className="btn-ghost text-sm">
         <ArrowLeft className="h-4 w-4" /> Back
       </button>
 
@@ -171,9 +134,7 @@ export function AssessmentNewPage() {
 
       <PromptHistoryPanel
         onUsePrompt={(entry) => {
-          if (entry.teacher_prompt) {
-            setValue('teacher_prompt', entry.teacher_prompt);
-          }
+          if (entry.teacher_prompt) setValue('teacher_prompt', entry.teacher_prompt);
           setValue('learning_area_code', entry.learning_area_code);
           toast.success('Prompt restored from history');
         }}
@@ -183,155 +144,97 @@ export function AssessmentNewPage() {
         <div className="card space-y-4">
           <h2 className="font-semibold text-gray-900">1. Choose strand</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="label">Learning area</label>
-              <select {...register('learning_area_code')} className="input">
-                <option value="">Select area...</option>
-                {curriculum.learning_areas.map((la) => (
-                  <option key={la.code} value={la.code}>{la.name} ({la.level})</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="label">Strand</label>
-              <div className="relative mb-1.5">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <input type="text" className="input pl-10" placeholder="Search strands by name or code..."
-                  value={strandSearch} onChange={(e) => setStrandSearch(e.target.value)} disabled={!selectedLA} />
-              </div>
-              <select {...register('strand_code')} className="input" disabled={!selectedLA}>
-                <option value="">Select strand...</option>
-                {filteredStrands.map((s) => (
-                  <option key={s.code} value={s.code}>{s.code} — {s.name}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="label">Sub-strand</label>
-              <select {...register('sub_strand_code')} className="input" disabled={!selectedStrand}>
-                <option value="">Select sub-strand...</option>
-                {filteredSubStrands.map((ss) => (
-                  <option key={ss.code} value={ss.code}>{ss.code} — {ss.name}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="label">Grade level</label>
-              <input {...register('grade_level')} className="input" placeholder="Grade 1" />
-            </div>
+            <StrandSelector
+              curriculum={curriculum}
+              selectedLA={selectedLA}
+              selectedStrand={selectedStrand}
+              strandSearch={strandSearch}
+              setStrandSearch={setStrandSearch}
+              register={register}
+            />
           </div>
 
-          <div>
-            <label className="label">Mode</label>
-            {!isOnline && mode === 'ai' && (
-              <div className="flex items-center gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 mb-2 text-xs text-amber-800">
-                <CloudOff className="h-3.5 w-3.5 shrink-0" />
-                AI generation needs internet — switching to manual mode
-              </div>
-            )}
-            <div className="flex gap-4">
-              {aiEnabled && isOnline && (
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="radio" value="ai" {...register('mode')} className="accent-primary-500" />
-                  <span className="text-sm">AI draft</span>
-                </label>
-              )}
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="radio" value="manual" {...register('mode')} className="accent-primary-500" />
-                <span className="text-sm">Structured template</span>
-              </label>
-            </div>
-          </div>
+          <ModeToggle mode={mode} aiEnabled={aiEnabled} isOnline={isOnline} register={register} />
 
-            {mode === 'ai' && isOnline && (
+          {mode === 'ai' && isOnline && (
+            <div>
+              <label className="label">Teacher guidance (optional)</label>
+              <textarea
+                {...register('teacher_prompt')}
+                className="input"
+                rows={2}
+                placeholder="e.g. Focus on word problems, use Kenyan currency"
+              />
+            </div>
+          )}
+
+          {mode === 'ai' && isOnline && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="label">Teacher guidance (optional)</label>
-                <textarea {...register('teacher_prompt')} className="input" rows={2}
-                  placeholder="e.g. Focus on word problems, use Kenyan currency" />
+                <label className="label">Number of questions</label>
+                <input
+                  type="number"
+                  {...register('item_count', { valueAsNumber: true })}
+                  className="input"
+                  min={1}
+                  max={20}
+                />
+                <p className="text-xs text-gray-500 mt-1">Choose between 1 and 20 questions</p>
               </div>
-            )}
-
-            {mode === 'ai' && isOnline && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="label">Number of questions</label>
-                  <input type="number" {...register('item_count', { valueAsNumber: true })} className="input" min={1} max={20} />
-                  <p className="text-xs text-gray-500 mt-1">Choose between 1 and 20 questions</p>
-                </div>
-                <div className="flex items-end">
-                  <label className="flex items-center gap-2 cursor-pointer pb-2">
-                    <input type="checkbox" {...register('include_diagrams')} className="accent-primary-500" />
-                    <span className="text-sm">Include diagram / chart prompts</span>
-                  </label>
-                </div>
+              <div className="flex items-end">
+                <label className="flex items-center gap-2 cursor-pointer pb-2">
+                  <input
+                    type="checkbox"
+                    {...register('include_diagrams')}
+                    className="accent-primary-500"
+                  />
+                  <span className="text-sm">Include diagram / chart prompts</span>
+                </label>
               </div>
-            )}
-          </div>
+            </div>
+          )}
+        </div>
 
         <div className="card space-y-4 mt-4">
           <div className="flex items-center justify-between">
             <h2 className="font-semibold text-gray-900">2. Assessment items</h2>
             {mode === 'ai' && items.length === 0 && isOnline && (
-              <button type="submit" disabled={generateMutation.isPending} className="btn-primary">
+              <button type="submit" disabled={generation.isPending} className="btn-primary">
                 <Sparkles className="h-4 w-4" />
-                {generateMutation.isPending ? 'Generating...' : 'Generate with AI'}
+                {generation.isPending ? 'Generating...' : 'Generate with AI'}
               </button>
             )}
           </div>
 
-          {items.map((item, idx) => (
-            <div key={item.id} className="border border-gray-200 rounded-lg p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="font-medium text-sm text-gray-700">Item {idx + 1}</span>
-                <button type="button" onClick={() => removeItem(idx)} className="text-gray-400 hover:text-red-600">
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </div>
-              <textarea value={item.stem} onChange={(e) => updateItem(idx, 'stem', e.target.value)}
-                className="input" rows={2} placeholder="Question stem..." />
-              <input value={item.answer_guide ?? ''} onChange={(e) => updateItem(idx, 'answer_guide', e.target.value)}
-                className="input" placeholder="Answer guide (optional)" />
-              {item.diagram_type && item.diagram_type !== 'none' && item.diagram_data && (
-                <div className="border border-blue-100 rounded-lg p-3 bg-blue-50/30">
-                  <p className="text-xs font-medium text-blue-700 mb-2">
-                    Diagram ({item.diagram_type})
-                  </p>
-                  {item.diagram_type === 'flowchart' && (
-                    <MermaidChart code={item.diagram_data} />
-                  )}
-                  {item.diagram_type === 'chart' && (
-                    <SimpleChart data={item.diagram_data} />
-                  )}
-                  {item.diagram_type === 'diagram' && (
-                    <p className="text-sm text-gray-600 italic">{item.diagram_data}</p>
-                  )}
-                  <textarea value={item.diagram_description ?? ''} onChange={(e) => updateItem(idx, 'diagram_description', e.target.value)}
-                    className="input mt-2" rows={1} placeholder="Diagram description (optional)" />
-                </div>
-              )}
-              {(!item.diagram_type || item.diagram_type === 'none') && (
-                <textarea value={item.diagram_description ?? ''} onChange={(e) => updateItem(idx, 'diagram_description', e.target.value)}
-                  className="input" rows={1} placeholder="Diagram / chart / picture description (optional)" />
-              )}
-            </div>
-          ))}
+          <AssessmentItemListEditor
+            items={items}
+            onItemsChange={setItems}
+          />
 
-          {(mode === 'manual' || items.length > 0) && (
-            <button type="button" onClick={addItem} className="btn-secondary">
-              <Plus className="h-4 w-4" /> Add item
-            </button>
-          )}
+          <button type="button" onClick={() => {
+            const newLength = items.length + 1;
+            setItems([...items, {
+              id: `itm_${String(newLength).padStart(2, '0')}`,
+              criterion: 'accuracy',
+              stem: '',
+              answer_guide: '',
+              max_level: 4,
+              diagram_description: '',
+            }]);
+          }} className="btn-secondary">
+            <Plus className="h-4 w-4" /> Add item
+          </button>
 
           {mode === 'manual' && items.length === 0 && (
-            <p className="text-sm text-gray-500 text-center py-4">Add assessment items to create your template</p>
+            <p className="text-sm text-gray-500 text-center py-4">
+              Add assessment items to create your template
+            </p>
           )}
         </div>
 
         <div className="card mt-4 space-y-4">
           <h2 className="font-semibold text-gray-900">3. Rubric</h2>
-          <p className="text-sm text-gray-500">
-            Edit levels, descriptors, and criteria. Drag to reorder criteria.
-          </p>
+          <p className="text-sm text-gray-500">Edit levels, descriptors, and criteria. Drag to reorder criteria.</p>
           <RubricEditor value={rubric} onChange={setRubric} />
         </div>
 
@@ -345,7 +248,11 @@ export function AssessmentNewPage() {
             <label className="label">Description (optional)</label>
             <textarea {...register('description')} className="input" rows={2} />
           </div>
-          <button type="submit" disabled={saveMutation.isPending || items.length === 0} className="btn-primary w-full">
+          <button
+            type="submit"
+            disabled={saveMutation.isPending || items.length === 0}
+            className="btn-primary w-full"
+          >
             {saveMutation.isPending ? 'Saving...' : 'Save assessment'}
           </button>
         </div>

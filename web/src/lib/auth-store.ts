@@ -18,6 +18,7 @@ interface AuthState {
   logout: () => Promise<void>;
   hydrate: () => Promise<void>;
   getRedirectPath: () => string;
+  setUser: (user: User | null) => void;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -73,11 +74,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     
     switch (user.role) {
       case 'super_admin':
-        return '/admin';
+        return '/super-admin';
       case 'school_admin':
         return '/school-admin';
       default:
         return '/';
     }
+  },
+
+  setUser: (user: User | null) => {
+    set({ user, isAuthenticated: !!user, isLoading: false });
   },
 }));

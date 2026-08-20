@@ -4,6 +4,7 @@ import { ArrowLeft, RefreshCw, Cloud, CloudOff } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api';
 import { db } from '@/lib/db';
+import { useOnlineStatus } from '@/features/assess/hooks';
 import toast from 'react-hot-toast';
 import type { Learner, Assessment, AssessmentRun, Score } from '@mwalimukit/types';
 
@@ -21,36 +22,11 @@ async function hapticTap() {
 export function ScoreEntryPage() {
   const { classId, assessmentId } = useParams<{ classId: string; assessmentId: string }>();
   const navigate = useNavigate();
+  const isOnline = useOnlineStatus();
+
   const [run, setRun] = useState<AssessmentRun | null>(null);
   const [scores, setScores] = useState<Record<string, Record<string, number | null>>>({});
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('synced');
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
-
-  useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-
-    const handleSyncMessage = (event: MessageEvent) => {
-      if (event.data?.type === 'BACKGROUND_SYNC' && event.data?.tag === 'sync-scores') {
-        syncScores();
-      }
-    };
-    navigator.serviceWorker?.addEventListener('message', handleSyncMessage);
-
-    if ('serviceWorker' in navigator && 'SyncManager' in window) {
-      navigator.serviceWorker.ready.then((reg) => {
-        (reg as any).sync?.register('sync-scores').catch(() => {});
-      });
-    }
-
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-      navigator.serviceWorker?.removeEventListener('message', handleSyncMessage);
-    };
-  }, []);
 
   const { data: learners = [], isLoading: loadingLearners } = useQuery<Learner[]>({
     queryKey: ['learners', classId],
@@ -66,11 +42,47 @@ export function ScoreEntryPage() {
 
   const loading = loadingLearners || loadingAssessment;
 
-  // Create run when data is ready
   useEffect(() => {
-    if (!assessment || learners.length === 0 || run) return;
+    const handleSyncMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'BACKGROUND_SYNC' && event.data?.tag === 'sync-scores') {
+        syncScores();
+      }
+    };
+    navigator.serviceWorker?.addEventListener('message', handleSyncMessage);
 
+    if ('serviceWorker' in navigator && 'SyncManager' in window) {
+      navigator.serviceWorker.ready.then((reg) => {
+        (reg as any).sync?.register('sync-scores').catch(() => {});
+      });
+    }
+
+    return () => {
+      navigator.serviceWorker?.removeEventListener('message', handleSyncMessage);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (isOnline && syncStatus === 'pending') {
+      syncScores();
+    }
+  }, [isOnline, syncStatus]);
+
+  useEffect(() => {
+    if (isOnline && run) {
+      const interval = setInterval(() => {
+        db.scores.where('_dirty').equals(1).toArray().then((dirty) => {
+          if (dirty.length > 0 && syncStatus !== 'syncing') {
+            syncScores();
+          }
+        });
+      }, 15000);
+      return () => clearInterval(interval);
+    }
+  }, [isOnline, run, syncStatus]);
+
+  useEffect(() => {
     const initRun = async () => {
+      if (!assessment || learners.length === 0 || run) return;
       try {
         const r = await apiFetch<AssessmentRun>('/runs', {
           method: 'POST',
@@ -115,7 +127,6 @@ export function ScoreEntryPage() {
   const handleScoreChange = useCallback(
     async (learnerId: string, itemId: string, level: number | null) => {
       if (!run) return;
-
       setScores((prev) => ({
         ...prev,
         [learnerId]: { ...(prev[learnerId] ?? {}), [itemId]: level },
@@ -169,7 +180,19 @@ export function ScoreEntryPage() {
         updated_at: s.updated_at,
       }));
 
-      const result = await apiFetch<{ synced: number; conflicts: number }>('/scores/batch', {
+      const result = await apiFetch<{
+        accepted: number;
+        conflicts: number;
+        rejected: { id: string; reason: string }[];
+        conflicted_rows: Array<{
+          id: string;
+          learner_id: string;
+          item_id: string;
+          server_level: number | null;
+          client_level: number | null;
+          server_updated_at: string;
+        }>;
+      }>('/scores/batch', {
         method: 'POST',
         json: { scores: batch },
       });
@@ -178,11 +201,35 @@ export function ScoreEntryPage() {
         await db.scores.update(s.id, { _dirty: false, _synced_at: new Date().toISOString() });
       }
 
-      if (result.conflicts > 0) {
+      if (result.conflicts > 0 && result.conflicted_rows) {
+        for (const cr of result.conflicted_rows) {
+          setScores((prev) => ({
+            ...prev,
+            [cr.learner_id]: {
+              ...(prev[cr.learner_id] ?? {}),
+              [cr.item_id]: cr.server_level,
+            },
+          }));
+          await db.scores.put({
+            id: `${run.id}_${cr.learner_id}_${cr.item_id}`,
+            run_id: run.id,
+            learner_id: cr.learner_id,
+            item_id: cr.item_id,
+            level: cr.server_level as 1 | 2 | 3 | 4 | null,
+            note: null,
+            updated_at: cr.server_updated_at,
+            _dirty: false,
+            _synced_at: new Date().toISOString(),
+          });
+        }
         toast(
           `${result.conflicts} of your scores were updated by another device — server version kept.`,
           { icon: '🔄', duration: 6000 },
         );
+      }
+
+      if (result.rejected?.length > 0) {
+        toast.error(`${result.rejected.length} scores were rejected`, { duration: 4000 });
       }
 
       setSyncStatus('synced');
@@ -190,12 +237,6 @@ export function ScoreEntryPage() {
       setSyncStatus('pending');
     }
   }, [run, syncStatus]);
-
-  useEffect(() => {
-    if (isOnline && syncStatus === 'pending') {
-      syncScores();
-    }
-  }, [isOnline, syncStatus, syncScores]);
 
   if (loading) {
     return (

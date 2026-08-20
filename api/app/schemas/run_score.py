@@ -40,3 +40,4 @@ class ScoreBatchResult(BaseModel):
     accepted: int
     conflicts: int = 0
     rejected: list[dict]
+    conflicted_rows: list[dict] = Field(default_factory=list)

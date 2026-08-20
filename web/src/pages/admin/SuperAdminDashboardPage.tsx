@@ -71,7 +71,7 @@ export function SuperAdminDashboardPage() {
         <h2 className="font-semibold text-gray-900 mb-4">Quick Actions</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <a
-            href="/admin/schools"
+            href="/super-admin/schools"
             className="flex items-center gap-3 p-4 rounded-lg border border-gray-200 hover:border-primary-300 hover:bg-primary-50 transition-colors"
           >
             <School className="h-5 w-5 text-primary-600" />
@@ -81,7 +81,7 @@ export function SuperAdminDashboardPage() {
             </div>
           </a>
           <a
-            href="/admin/users"
+            href="/super-admin/users"
             className="flex items-center gap-3 p-4 rounded-lg border border-gray-200 hover:border-primary-300 hover:bg-primary-50 transition-colors"
           >
             <Users className="h-5 w-5 text-primary-600" />
@@ -91,7 +91,7 @@ export function SuperAdminDashboardPage() {
             </div>
           </a>
           <a
-            href="/admin/learners"
+            href="/super-admin/learners"
             className="flex items-center gap-3 p-4 rounded-lg border border-gray-200 hover:border-primary-300 hover:bg-primary-50 transition-colors"
           >
             <GraduationCap className="h-5 w-5 text-primary-600" />

@@ -19,12 +19,14 @@ class Settings(BaseSettings):
         "http://localhost:3000",
         "https://mwalimukit.vercel.app",
     ], alias="API_CORS_ORIGINS")
-
     database_url: str = Field(default="postgresql+psycopg://mwalimu:mwalimu@db:5432/mwalimukit", alias="DATABASE_URL")
     redis_url: str = Field(default="redis://redis:6379/0", alias="REDIS_URL")
 
     access_token_ttl_minutes: int = 15
     refresh_token_ttl_days: int = 30
+    jwt_issuer: str = Field(default="mwalimukit.api", alias="JWT_ISSUER")
+    jwt_audience: str = Field(default="mwalimukit.web", alias="JWT_AUDIENCE")
+    refresh_token_rotation: bool = Field(default=True, alias="REFRESH_TOKEN_ROTATION")
 
     ai_provider: str = Field(default="mock", alias="AI_PROVIDER")
     ai_api_key: str = Field(default="", alias="AI_API_KEY")

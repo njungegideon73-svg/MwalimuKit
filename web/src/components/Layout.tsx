@@ -29,11 +29,11 @@ const navItems = [
 ];
 
 const adminNavItems = [
-  { to: '/admin', icon: Shield, label: 'Admin Dashboard', roles: ['super_admin'] },
-  { to: '/admin/schools', icon: School, label: 'Manage Schools', roles: ['super_admin'] },
-  { to: '/admin/users', icon: Users, label: 'Manage Users', roles: ['super_admin'] },
-  { to: '/admin/learners', icon: GraduationCap, label: 'Manage Learners', roles: ['super_admin'] },
-  { to: '/admin/settings', icon: Settings, label: 'System Settings', roles: ['super_admin'] },
+  { to: '/super-admin', icon: Shield, label: 'Admin Dashboard', roles: ['super_admin'] },
+  { to: '/super-admin/schools', icon: School, label: 'Manage Schools', roles: ['super_admin'] },
+  { to: '/super-admin/users', icon: Users, label: 'Manage Users', roles: ['super_admin'] },
+  { to: '/super-admin/learners', icon: GraduationCap, label: 'Manage Learners', roles: ['super_admin'] },
+  { to: '/super-admin/settings', icon: Settings, label: 'System Settings', roles: ['super_admin'] },
 ];
 
 const schoolAdminNavItems = [
@@ -85,7 +85,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 <NavLink
                   key={item.to}
                   to={item.to}
-                  end={item.to === '/admin'}
+                  end={item.to === '/super-admin'}
                   className={({ isActive }) =>
                     `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
                       isActive
@@ -205,7 +205,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                     <NavLink
                       key={item.to}
                       to={item.to}
-                      end={item.to === '/admin'}
+                      end={item.to === '/super-admin'}
                       onClick={() => setSidebarOpen(false)}
                       className={({ isActive }) =>
                         `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium ${

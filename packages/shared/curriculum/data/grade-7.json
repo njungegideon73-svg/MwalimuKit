@@ -1,0 +1,36 @@
+{
+  "learning_areas": [
+    { "code": "JSS-ENG",  "name": "English",                "level": "jss", "sort_order": 1 },
+    { "code": "JSS-MATH", "name": "Mathematics",             "level": "jss", "sort_order": 2 },
+    { "code": "JSS-SCI",  "name": "Integrated Science",      "level": "jss", "sort_order": 3 }
+  ],
+  "strands": [
+    { "code": "JSS-ENG-LIS",  "learning_area_code": "JSS-ENG",  "name": "Listening and Speaking",  "sort_order": 1 },
+    { "code": "JSS-ENG-READ", "learning_area_code": "JSS-ENG",  "name": "Reading",                 "sort_order": 2 },
+    { "code": "JSS-ENG-WRIT", "learning_area_code": "JSS-ENG",  "name": "Writing",                 "sort_order": 3 },
+    { "code": "JSS-MATH-NUM", "learning_area_code": "JSS-MATH", "name": "Numbers and Algebra",     "sort_order": 1 },
+    { "code": "JSS-MATH-MEA", "learning_area_code": "JSS-MATH", "name": "Measurement",             "sort_order": 2 },
+    { "code": "JSS-MATH-GEO", "learning_area_code": "JSS-MATH", "name": "Geometry",                "sort_order": 3 },
+    { "code": "JSS-SCI-LIV",  "learning_area_code": "JSS-SCI",  "name": "Living Things",           "sort_order": 1 },
+    { "code": "JSS-SCI-CHM",  "learning_area_code": "JSS-SCI",  "name": "Chemistry basics",        "sort_order": 2 },
+    { "code": "JSS-SCI-PHY",  "learning_area_code": "JSS-SCI",  "name": "Physics basics",          "sort_order": 3 }
+  ],
+  "sub_strands": [
+    { "code": "JSS-ENG-LIS-1.1",  "strand_code": "JSS-ENG-LIS",  "name": "Listening for gist and detail",           "sort_order": 1 },
+    { "code": "JSS-ENG-LIS-1.2",  "strand_code": "JSS-ENG-LIS",  "name": "Formal and informal conversations",         "sort_order": 2 },
+    { "code": "JSS-ENG-READ-1.1", "strand_code": "JSS-ENG-READ", "name": "Reading comprehension",                     "sort_order": 1 },
+    { "code": "JSS-ENG-READ-1.2", "strand_code": "JSS-ENG-READ", "name": "Poetry appreciation",                       "sort_order": 2 },
+    { "code": "JSS-ENG-WRIT-1.1", "strand_code": "JSS-ENG-WRIT", "name": "Paragraph writing",                         "sort_order": 1 },
+    { "code": "JSS-ENG-WRIT-1.2", "strand_code": "JSS-ENG-WRIT", "name": "Essay writing",                             "sort_order": 2 },
+    { "code": "JSS-MATH-NUM-1.1", "strand_code": "JSS-MATH-NUM", "name": "Integers and operations",                   "sort_order": 1 },
+    { "code": "JSS-MATH-NUM-1.2", "strand_code": "JSS-MATH-NUM", "name": "Algebraic expressions",                     "sort_order": 2 },
+    { "code": "JSS-MATH-NUM-1.3", "strand_code": "JSS-MATH-NUM", "name": "Linear equations",                          "sort_order": 3 },
+    { "code": "JSS-MATH-MEA-1.1", "strand_code": "JSS-MATH-MEA", "name": "Perimeter and area",                        "sort_order": 1 },
+    { "code": "JSS-MATH-MEA-1.2", "strand_code": "JSS-MATH-MEA", "name": "Volume and surface area",                   "sort_order": 2 },
+    { "code": "JSS-MATH-GEO-1.1", "strand_code": "JSS-MATH-GEO", "name": "Angles and triangles",                      "sort_order": 1 },
+    { "code": "JSS-MATH-GEO-1.2", "strand_code": "JSS-MATH-GEO", "name": "Pythagoras theorem",                        "sort_order": 2 },
+    { "code": "JSS-SCI-LIV-1.1",  "strand_code": "JSS-SCI-LIV",  "name": "Cell structure and function",               "sort_order": 1 },
+    { "code": "JSS-SCI-CHM-1.1",  "strand_code": "JSS-SCI-CHM",  "name": "States of matter",                          "sort_order": 1 },
+    { "code": "JSS-SCI-PHY-1.1",  "strand_code": "JSS-SCI-PHY",  "name": "Force and motion",                          "sort_order": 1 }
+  ]
+}

@@ -1,13 +1,17 @@
 """Seed the curriculum catalogue and a demo school.
 
-The TypeScript catalogue in packages/shared/curriculum/data/catalogue.ts is the
-canonical source. This module is a hand-maintained mirror so the seed script
-does not need a TS toolchain. If you add a new strand/sub-strand in the TS
-catalogue, mirror it here too.
+The canonical curriculum content lives as JSON in
+``packages/shared/curriculum/data/`` (lower-primary.json, upper-primary.json,
+grade-7.json).  This script loads those files so the seed logic and the
+frontend catalogue share a single source of truth.  If the JSON files are
+unavailable, the embedded ``CATALOGUE`` dict serves as a fallback.
 """
 from __future__ import annotations
 
 import asyncio
+import json
+import os
+from pathlib import Path
 from uuid import uuid4
 
 from sqlalchemy import select
@@ -18,6 +22,8 @@ from app.core.security import hash_password
 from app.models.curriculum import CurriculumLevel, LearningArea, Strand, SubStrand
 from app.models.school import School
 from app.models.user import User, UserRole
+
+_CURRICULUM_DATA_DIR = Path(__file__).resolve().parents[4] / "packages/shared/curriculum/data"
 
 
 CATALOGUE: dict = {
@@ -246,13 +252,39 @@ CATALOGUE: dict = {
 }
 
 
+def _load_catalogue_json() -> dict:
+    """Load curriculum JSON seed files from the shared packages directory.
+
+    Falls back to the embedded ``CATALOGUE`` dict if the JSON files are
+    not present (e.g. running the script outside the monorepo).
+    """
+    json_files = ["lower-primary.json", "grade-7.json"]
+    merged: dict[str, list] = {"learning_areas": [], "strands": [], "sub_strands": []}
+
+    for fname in json_files:
+        path = _CURRICULUM_DATA_DIR / fname
+        if not path.exists():
+            continue
+        with open(path) as fh:
+            data = json.load(fh)
+            for key, value in merged.items():
+                value.extend(data.get(key, []))
+
+    if not merged["learning_areas"]:
+        return CATALOGUE
+
+    return merged
+
+
 async def upsert_all(db: AsyncSession) -> None:
+    catalogue = _load_catalogue_json()
+
     la_by_code: dict[str, LearningArea] = {}
     existing_las = (await db.execute(select(LearningArea))).scalars().all()
     for la in existing_las:
         la_by_code[la.code] = la
 
-    for row in CATALOGUE["learning_areas"]:
+    for row in catalogue["learning_areas"]:
         if row["code"] in la_by_code:
             continue
         la = LearningArea(
@@ -271,7 +303,7 @@ async def upsert_all(db: AsyncSession) -> None:
     for s in existing_ss:
         strand_by_code[s.code] = s
 
-    for row in CATALOGUE["strands"]:
+    for row in catalogue["strands"]:
         if row["code"] in strand_by_code:
             continue
         la = la_by_code[row["learning_area_code"]]
@@ -288,7 +320,7 @@ async def upsert_all(db: AsyncSession) -> None:
 
     existing_subs = (await db.execute(select(SubStrand))).scalars().all()
     have = {s.code for s in existing_subs}
-    for row in CATALOGUE["sub_strands"]:
+    for row in catalogue["sub_strands"]:
         if row["code"] in have:
             continue
         parent = strand_by_code[row["strand_code"]]
@@ -332,11 +364,10 @@ async def seed_demo_school(db: AsyncSession) -> None:
     )
     db.add(teacher)
     await db.commit()
-    print(f"Demo school created: code=DEMO01, teacher=teacher@demo.mwalimukit.go.ke / password123")
+    print("Demo school created: code=DEMO01, teacher=teacher@demo.mwalimukit.go.ke / password123")
 
 
 async def main() -> None:
-    import os
     env = os.environ.get("API_ENV", "development")
     async with SessionLocal() as db:
         await upsert_all(db)

@@ -14,7 +14,7 @@
     "lint": "npm --workspace web run lint",
     "typecheck": "npm --workspace web run typecheck",
     "android:sync": "npm --workspace web run build && npm --workspace mobile run sync",
-    "android:open": "npm --workspace mobile run open"
+    "android:open": "npm --workspace web run build && npm --workspace mobile run open"
   },
   "engines": {
     "node": ">=20.0.0",

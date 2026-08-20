@@ -188,7 +188,7 @@ export default function App() {
 
                 {/* Super Admin Routes */}
                 <Route
-                  path="/admin"
+                  path="/super-admin"
                   element={
                     <RoleBasedRoute allowedRoles={['super_admin']}>
                       <SuperAdminDashboardPage />
@@ -196,7 +196,7 @@ export default function App() {
                   }
                 />
                 <Route
-                  path="/admin/schools"
+                  path="/super-admin/schools"
                   element={
                     <RoleBasedRoute allowedRoles={['super_admin']}>
                       <SchoolsManagementPage />
@@ -204,7 +204,7 @@ export default function App() {
                   }
                 />
                 <Route
-                  path="/admin/users"
+                  path="/super-admin/users"
                   element={
                     <RoleBasedRoute allowedRoles={['super_admin']}>
                       <UsersManagementPage />
@@ -212,7 +212,7 @@ export default function App() {
                   }
                 />
                 <Route
-                  path="/admin/learners"
+                  path="/super-admin/learners"
                   element={
                     <RoleBasedRoute allowedRoles={['super_admin']}>
                       <LearnersManagementPage />
@@ -220,7 +220,7 @@ export default function App() {
                   }
                 />
                 <Route
-                  path="/admin/settings"
+                  path="/super-admin/settings"
                   element={
                     <RoleBasedRoute allowedRoles={['super_admin']}>
                       <SystemSettingsPage />

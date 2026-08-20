@@ -7,13 +7,45 @@ from jose import JWTError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
+from app.core.rate_limit import _get_redis
 from app.core.security import (
-    create_access_token, create_refresh_token, decode_token,
-    hash_password, verify_password,
+    create_access_token,
+    create_refresh_token,
+    decode_token,
+    hash_password,
+    verify_password,
 )
 from app.models.school import School
 from app.models.user import User, UserRole
 from app.schemas.auth import SignupRequest, TokenPair, UserOut
+
+
+async def _is_refresh_revoked(jti: str) -> bool:
+    """Check the Redis revocation list for a revoked refresh-token jti."""
+    if not settings.refresh_token_rotation:
+        return False
+    redis = await _get_redis()
+    if redis is None:
+        return False
+    try:
+        return await redis.exists(f"revoked_refresh:{jti}") == 1
+    except Exception:
+        return False
+
+
+async def _revoke_refresh(jti: str) -> None:
+    """Add a refresh-token jti to the Redis revocation list with TTL."""
+    if not settings.refresh_token_rotation:
+        return
+    redis = await _get_redis()
+    if redis is None:
+        return
+    try:
+        ttl = settings.refresh_token_ttl_days * 24 * 60 * 60
+        await redis.setex(f"revoked_refresh:{jti}", ttl, "1")
+    except Exception:
+        pass
 
 
 async def signup(db: AsyncSession, payload: SignupRequest) -> TokenPair:
@@ -64,11 +96,18 @@ async def refresh_tokens(db: AsyncSession, refresh_token: str) -> TokenPair:
     if not user_id:
         raise ValueError("Invalid token payload.")
 
+    jti = payload.get("jti")
+    if jti and await _is_refresh_revoked(jti):
+        raise ValueError("Refresh token has been revoked.")
+
     user = (
         await db.execute(select(User).where(User.id == user_id, User.is_active.is_(True)))
     ).scalar_one_or_none()
     if user is None:
         raise ValueError("User not found or deactivated.")
+
+    if jti:
+        await _revoke_refresh(jti)
 
     return _pair(user)
 

@@ -27,11 +27,9 @@ export function LoginPage() {
     setLoading(true);
     try {
       await login(data.email, data.password);
-      const redirectPath = getRedirectPath();
-      navigate(redirectPath);
+      navigate(getRedirectPath());
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Login failed';
-      toast.error(msg);
+      toast.error(err instanceof Error ? err.message : 'Login failed');
     } finally {
       setLoading(false);
     }
@@ -64,9 +62,7 @@ export function LoginPage() {
           </button>
           <p className="text-center text-sm text-gray-500">
             Don't have an account?{' '}
-            <Link to="/signup" className="text-primary-600 font-medium hover:underline">
-              Sign up
-            </Link>
+            <Link to="/signup" className="text-primary-600 font-medium hover:underline">Sign up</Link>
           </p>
         </form>
       </div>

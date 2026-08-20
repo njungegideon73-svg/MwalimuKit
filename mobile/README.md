@@ -12,19 +12,24 @@ contains only the native shell and build configuration.
 
 ## Quick start
 
-```bash
-# From the monorepo root:
-npm run android:sync   # build web + sync to Android
-npm run android:open   # open in Android Studio
-```
-
-Or step by step:
+The root scripts ensure the web app is built before syncing to Android:
 
 ```bash
-cd ../web && npm run build   # build the PWA
-cd ../mobile && npx cap sync android   # copy assets + update plugins
-npx cap open android   # open Android Studio
+# From the monorepo root — both scripts build web first, then sync to Android:
+npm run android:sync   # build web + cap sync android
+npm run android:open   # build web + cap open android
 ```
+
+You can also run each step manually:
+
+```bash
+npm --workspace web run build     # build the PWA into web/dist
+npm --workspace mobile run sync   # copy assets + update plugins
+npm --workspace mobile run open   # open Android Studio
+```
+
+> **Note:** `android:open` used to skip the web build. It now builds web first so
+> the Capacitor native shell always has a fresh `web/dist` to serve.
 
 ## Building the APK
 
