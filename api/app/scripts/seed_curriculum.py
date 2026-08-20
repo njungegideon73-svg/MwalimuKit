@@ -23,7 +23,7 @@ from app.models.curriculum import CurriculumLevel, LearningArea, Strand, SubStra
 from app.models.school import School
 from app.models.user import User, UserRole
 
-_CURRICULUM_DATA_DIR = Path(__file__).resolve().parents[4] / "packages/shared/curriculum/data"
+_CURRICULUM_DATA_DIR = Path(__file__).resolve().parents[3] / "packages/shared/curriculum/data"
 
 
 CATALOGUE: dict = {
