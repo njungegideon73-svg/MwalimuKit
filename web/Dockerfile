@@ -45,9 +45,15 @@ server {
     }
 
     # Security headers
-    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Frame-Options "DENY" always;
     add_header X-Content-Type-Options "nosniff" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+    # HSTS: only meaningful over TLS, harmless on plain HTTP dev setups.
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    # CSP tuned for the Vite PWA bundle (inline styles used by libs;
+    # connect-src * allows the app to reach its configured API origin).
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' *; frame-ancestors 'none'; base-uri 'self'; form-action 'self'" always;
 
     # Gzip
     gzip on;

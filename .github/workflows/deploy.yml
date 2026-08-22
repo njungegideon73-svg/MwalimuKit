@@ -1,0 +1,74 @@
+name: CD — Deploy to Fly.io
+
+on:
+  push:
+    tags:
+      - "v*"
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Deployment target"
+        required: true
+        default: "production"
+        type: choice
+        options:
+          - staging
+          - production
+
+env:
+  FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+jobs:
+  deploy:
+    name: "Build & Deploy (${{ github.ref_name }})"
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'production' }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install Flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@main
+
+      - name: Build web assets
+        run: |
+          npm ci --no-audit --no-fund
+          npm --workspace web run build
+
+      - name: Deploy API to Fly.io
+        run: |
+          cd api
+          flyctl deploy --remote-only \
+            --app mwalimukit-api-${{ github.ref == 'refs/heads/main' && 'prod' || 'staging' }} \
+            --image-label "sha-${{ github.sha }}" \
+            --image-label "ref-${{ github.ref_name }}" \
+            --wait-timeouts 120s
+
+      - name: Run database migrations
+        run: |
+          flyctl ssh console --app mwalimukit-api-${{ github.ref == 'refs/heads/main' && 'prod' || 'staging' }} -C "alembic upgrade head"
+
+      - name: Verify deployment
+        run: |
+          env_suffix=$([ "${{ github.ref }}" = "refs/heads/main" ] && echo "prod" || echo "staging")
+          sleep 10
+          curl -f https://mwalimukit-${env_suffix}.fly.dev/health
+
+      - name: Tag release (if GitHub release)
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          gh release view "${{ github.ref_name }}" --json name && echo "Release exists"

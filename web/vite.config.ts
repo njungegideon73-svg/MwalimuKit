@@ -27,18 +27,33 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         runtimeCaching: [
+          // Static, rarely-changing reference data: cache-first.
           {
             urlPattern: /^https?:\/\/.*\/api\/v1\/curriculum\/catalogue/,
-            handler: 'StaleWhileRevalidate',
-            options: { cacheName: 'curriculum', expiration: { maxEntries: 1, maxAgeSeconds: 86400 } },
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'curriculum-catalogue',
+              expiration: { maxEntries: 4, maxAgeSeconds: 7 * 24 * 3600 },
+              cacheableResponse: { statuses: [200] },
+            },
           },
+          // Live assessment data and auth: never serve from cache. Workbox
+          // route handlers are GET-only by default; NetworkOnly makes the
+          // intent explicit and guarantees no stale scores on shared devices.
           {
-            urlPattern: /^https?:\/\/.*\/api\/v1\//,
+            urlPattern: /^https?:\/\/.*\/api\/v1\/(assessments|scores|runs|auth)(\/|$)/,
+            handler: 'NetworkOnly',
+          },
+          // Moderately dynamic school data: network-first with a short TTL
+          // so offline fallbacks exist but stale data ages out fast.
+          {
+            urlPattern: /^https?:\/\/.*\/api\/v1\/(classes|learners)(\/|$)/,
             handler: 'NetworkFirst',
             options: {
-              cacheName: 'api-cache',
-              expiration: { maxEntries: 50, maxAgeSeconds: 3600 },
+              cacheName: 'api-school-data',
+              expiration: { maxEntries: 50, maxAgeSeconds: 300 },
               networkTimeoutSeconds: 3,
+              cacheableResponse: { statuses: [200] },
             },
           },
         ],

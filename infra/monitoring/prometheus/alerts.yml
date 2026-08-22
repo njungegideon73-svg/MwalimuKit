@@ -1,0 +1,137 @@
+# ─────────────────────────────────────────────────────────────
+# MwalimuKit — Prometheus Alert Rules
+# ─────────────────────────────────────────────────────────────
+# These rules are loaded by Prometheus from alerts.yml.
+# Alertmanager routes alerts to Slack / email / PagerDuty.
+# ─────────────────────────────────────────────────────────────
+
+groups:
+  - name: mwalimukit-api
+    rules:
+
+      # ── High error rate ──────────────────────────────────
+      - alert: APIHighErrorRate
+        expr: rate(mwalimukit_http_requests_total{status=~"5.."}[2m]) / rate(mwalimukit_http_requests_total[2m]) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+          team: backend
+        annotations:
+          summary: "5xx error rate > 5% on MwalimuKit API"
+          description: "{{ $value }}% of requests are returning 5xx errors. Check logs and Sentry."
+
+      # ── High latency ─────────────────────────────────────
+      - alert: APIHighLatency
+        expr: histogram_quantile(0.95, rate(mwalimukit_http_request_duration_seconds_bucket[5m])) > 2
+        for: 3m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "p95 API latency > 2s"
+          description: "95th percentile response time is {{ $value }}s. Users may be experiencing slow responses."
+
+      # ── Rate limited ─────────────────────────────────────
+      - alert: APIRateLimited
+        expr: rate(mwalimukit_rate_limited_total[5m]) > 10
+        for: 1m
+        labels:
+          severity: warning
+          team: security
+        annotations:
+          summary: "High rate of rate-limited requests"
+          description: "{{ $value }} requests/minute are being rate-limited. Possible abuse or misconfiguration."
+
+      # ── Health check failing ─────────────────────────────
+      - alert: APIUnhealthy
+        expr: absent(up{job="mwalimukit-api"} == 1)
+        for: 30s
+        labels:
+          severity: critical
+          team: backend
+        annotations:
+          summary: "API health check failing"
+          description: "The MwalimuKit API target has disappeared from Prometheus. The service may be down."
+
+  - name: mwalimukit-database
+    rules:
+
+      # ── DB connection pool exhausted ─────────────────────
+      - alert: DBConnectionPoolExhausted
+        expr: pg_stat_database_sessions{application_name="mwalimukit-api"} / pg_settings_max_connections > 0.9
+        for: 1m
+        labels:
+          severity: critical
+          team: backend
+        annotations:
+          summary: "Database connection pool > 90% capacity"
+          description: "API is rapidly consuming DB connections. Connection leaks or need to scale."
+
+      # ── DB unavailable ───────────────────────────────────
+      - alert: DBUnavailable
+        expr: absent(pg_up{app="mwalimukit-api"} == 1)
+        for: 30s
+        labels:
+          severity: critical
+          team: backend
+        annotations:
+          summary: "Database is unavailable"
+          description: "Postgres is not responding. Failover may be in progress."
+
+      # ── Slow queries ─────────────────────────────────────
+      - alert: DBSlowQueries
+        expr: rate(pg_stat_statements_total_seconds_sum[5m]) / rate(pg_stat_statements_total_seconds_count[5m]) > 1
+        for: 2m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "Average query latency > 1s"
+          description: "Database queries are slow (>1s avg). Check for missing indexes or heavy load."
+
+  - name: mwalimukit-infra
+    rules:
+
+      # ── Redis unavailable ──────────────────────────────────
+      - alert: RedisUnavailable
+        expr: absent(redis_up{job="mwalimukit-redis"} == 1)
+        for: 30s
+        labels:
+          severity: critical
+          team: backend
+        annotations:
+          summary: "Redis is unavailable"
+          description: "Rate limiting and caching have fallen back to in-process mode."
+
+      # ── Disk space critical ────────────────────────────────
+      - alert: DiskSpaceCritical
+        expr: node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"} * 100 < 10
+        for: 2m
+        labels:
+          severity: critical
+          team: sre
+        annotations:
+          summary: "Disk space < 10% on {{ $labels.instance }}"
+          description: "Root filesystem is nearly full. Clean up old Docker images or volumes."
+
+      # ── High CPU usage ─────────────────────────────────────
+      - alert: HighCPUUsage
+        expr: 100 - (avg(irate(node_cpu_seconds_total{mode="idle"}[2m])) * 100) > 80
+        for: 3m
+        labels:
+          severity: warning
+          team: sre
+        annotations:
+          summary: "CPU usage > 80% on {{ $labels.instance }}"
+          description: "Consider scaling up or adding more API workers."
+
+      # ── Nginx returning errors ────────────────────────────
+      - alert: NginxHighErrorRate
+        expr: rate(nginx_ingress_controller_nginx_status{code=~"5.."}[2m]) > 0.05
+        for: 1m
+        labels:
+          severity: warning
+          team: sre
+        annotations:
+          summary: "Nginx 5xx error rate > 5%"
+          description: "The load balancer is returning 5xx errors, likely due to backend failures."

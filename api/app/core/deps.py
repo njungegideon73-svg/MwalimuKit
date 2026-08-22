@@ -41,6 +41,12 @@ async def get_current_user(
     ).scalar_one_or_none()
     if user is None:
         raise credentials_exc
+
+    # Session invalidation: tokens issued before the current token_version
+    # (e.g. pre-password-change) are rejected. Missing `ver` claim is only
+    # accepted while the user is still at version 0.
+    if payload.get("ver", 0) != user.token_version:
+        raise credentials_exc
     return user
 
 

@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.ai.factory import get_provider
 from app.core.db import get_db
 from app.core.deps import CurrentUser
+from app.core.metrics import inc_business_counter
 from app.core.rate_limit import rate_limit_generate
 from app.models.assessment import Assessment
 from app.models.curriculum import LearningArea
@@ -98,6 +99,7 @@ async def generate(
     db.add(history)
     await db.commit()
 
+    inc_business_counter("assessments_generated_total")
     return GenerateAssessmentResponse(
         rubric=result.rubric,
         items=result.items,
@@ -116,6 +118,7 @@ async def create(
     payload: AssessmentIn, user: CurrentUser, db: AsyncSession = Depends(get_db)
 ) -> AssessmentOut:
     result = await svc_create(db, payload, user.school_id, user.id)
+    inc_business_counter("assessments_created_total")
     await log_activity(
         db,
         user_id=user.id,

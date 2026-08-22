@@ -17,6 +17,7 @@ from uuid import uuid4
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.cache import invalidate_catalogue_cache
 from app.core.db import SessionLocal
 from app.core.security import hash_password
 from app.models.curriculum import CurriculumLevel, LearningArea, Strand, SubStrand
@@ -373,6 +374,8 @@ async def main() -> None:
         await upsert_all(db)
         if env != "production":
             await seed_demo_school(db)
+    # Invalidate the curriculum catalogue cache since data changed.
+    await invalidate_catalogue_cache()
     print("Seeding complete.")
 
 

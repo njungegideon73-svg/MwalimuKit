@@ -34,7 +34,7 @@ class Assessment(UUIDPK, Timestamped, Base):
     strand_code: Mapped[str | None] = mapped_column(Text, nullable=True)
     sub_strand_codes: Mapped[list[str]] = mapped_column(ARRAY(Text), nullable=True)
     source: Mapped[AssessmentSource] = mapped_column(
-        Enum(AssessmentSource, name="assessment_source", native_enum=True),
+        Enum(AssessmentSource, name="assessment_source", native_enum=False),
         nullable=False,
         default=AssessmentSource.manual,
     )

@@ -10,9 +10,29 @@ import type {
   Score,
 } from '@mwalimukit/types';
 
+/**
+ * Dirty flag stored as 0 | 1 (not boolean): IndexedDB cannot index booleans,
+ * so rows with `_dirty: true` are silently dropped from the index. Keeping it
+ * a numeric flag keeps the `_dirty` index and `.equals(1)` queries reliable.
+ */
+export type DirtyFlag = 0 | 1;
+
 export type Syncable<T> = T & {
-  _dirty: boolean;
+  _dirty: DirtyFlag;
   _synced_at: string | null;
+};
+
+const SYNCED_TABLES = ['assessments', 'classes', 'learners', 'runs', 'scores'] as const;
+
+const schema = {
+  learning_areas: 'code, level',
+  strands: 'code, learning_area_code',
+  sub_strands: 'code, strand_code',
+  assessments: 'id, owner_id, school_id, strand_code, _dirty',
+  classes: 'id, teacher_id, school_id, _dirty',
+  learners: 'id, class_id, school_id, _dirty',
+  runs: 'id, class_id, assessment_id, school_id, _dirty',
+  scores: 'id, run_id, learner_id, [run_id+learner_id+item_id], _dirty',
 };
 
 class MwalimuDB extends Dexie {
@@ -27,16 +47,17 @@ class MwalimuDB extends Dexie {
 
   constructor() {
     super('mwalimukit');
-    this.version(1).stores({
-      learning_areas: 'code, level',
-      strands: 'code, learning_area_code',
-      sub_strands: 'code, strand_code',
-      assessments: 'id, owner_id, school_id, strand_code, _dirty',
-      classes: 'id, teacher_id, school_id, _dirty',
-      learners: 'id, class_id, school_id, _dirty',
-      runs: 'id, class_id, assessment_id, school_id, _dirty',
-      scores: 'id, run_id, learner_id, [run_id+learner_id+item_id], _dirty',
-    });
+    this.version(1).stores(schema);
+    this.version(2)
+      .stores(schema)
+      .upgrade(async (tx) => {
+        // Normalize legacy boolean `_dirty` values to 0 | 1.
+        for (const name of SYNCED_TABLES) {
+          await tx.table(name).toCollection().modify((record) => {
+            record._dirty = record._dirty ? 1 : 0;
+          });
+        }
+      });
   }
 }
 
@@ -66,7 +87,7 @@ export async function markSynced(table: Table, ids: string[]) {
     for (const id of ids) {
       const item = await table.get(id);
       if (item) {
-        await table.update(id, { _dirty: false, _synced_at: new Date().toISOString() });
+        await table.update(id, { _dirty: 0, _synced_at: new Date().toISOString() });
       }
     }
   });

@@ -37,26 +37,51 @@
 ### Web app (`web/`)
 
 - **React 18 + Vite + TypeScript** for fast dev cycles.
+- **Route-level code splitting**: every page is loaded via
+  `React.lazy()` (`web/src/app/App.tsx`) so the initial bundle stays
+  small on low-bandwidth connections; a shared spinner shows while a
+  chunk loads.
 - **TanStack Query** for server state, with a custom "persisted
   query client" that uses Dexie as the backing store so data survives
   reloads.
 - **Zustand** for small slices of UI state.
-- **Dexie** for IndexedDB.
+- **Dexie** for IndexedDB (schema v2, numeric `_dirty: 0 | 1` sync flag —
+  see `docs/05-data-model.md`).
 - **shadcn/ui + Tailwind** for components.
-- **Workbox** for the service worker (precaching + Background Sync).
+- **Workbox** for the service worker (precaching + runtime caching, see
+  "Offline strategy").
 - **react-hook-form + zod** for forms and validation.
 
 ### Backend (`api/`)
 
 - **FastAPI** with explicit routers per domain
-  (`auth`, `schools`, `curriculum`, `assessments`, `classes`,
-  `learners`, `runs`, `scores`, `feature_flags`).
+  (`auth`, `schools`, `curriculum`, `assessments`, `history`, `classes`,
+  `learners`, `runs`, `scores`, `reports`, `news`, `term_exams`,
+  `billing`, `admin`, `feature_flags`, `super_admin`, `school_admin`).
+  Shared admin business logic lives in `app/services/admin.py`.
 - **SQLAlchemy 2.x** with async sessions (`asyncpg`).
-- **Alembic** for migrations.
+- **Alembic** for migrations (`0001`–`0007`).
 - **Redis** for rate limits and (later) background jobs.
 - **Pydantic v2** for schemas.
 - **Argon2** for password hashing.
 - **python-jose** for JWT.
+
+### Cross-cutting concerns
+
+- **Rate limiting** (IP-based, Redis-backed, degrades gracefully):
+  login 5/min, signup 5/min, refresh 30/min, AI generate 10/min.
+- **Password policy**: minimum 8 characters with at least one letter and
+  one digit, enforced by a Pydantic validator on signup, password change,
+  and admin-created users.
+- **CSRF posture**: the API uses bearer tokens (never auto-attached by
+  browsers), and CORS origins are explicit — never a wildcard paired
+  with credentials. OPTIONS preflight requests for state-changing
+  endpoints are covered by tests in `api/tests/test_cors_preflight.py`,
+  run in CI (`.github/workflows/ci.yml`).
+- **Health checks**: `GET /health` is a liveness probe;
+  `GET /ready` verifies DB connectivity (and reports Redis status) and
+  returns 503 when the database is unreachable. Both containers define
+  healthchecks in `docker-compose.yml` / their Dockerfiles.
 
 ### Shared package (`packages/shared/`)
 
@@ -78,14 +103,21 @@
    and the curriculum JSON.
 2. On login, the app fetches the user's assessments, classes, learners,
    and any in-progress runs, and writes them into Dexie.
-3. All writes go to Dexie first. Each row is marked `dirty=true` and
+3. All writes go to Dexie first. Each row is marked `_dirty = 1` and
    queued by entity type.
 4. The Background Sync API (or a `online` event fallback) drains the
    queue. Batch endpoints accept a list of writes with client-side
    UUIDs for idempotency.
-5. The service worker also caches read-only GETs with a
-   stale-while-revalidate policy so opening the app cold on a flaky
-   network still feels instant.
+5. API responses are cached per data class (`web/vite.config.ts`):
+
+   | Policy | Endpoints | Rationale |
+   | ------ | --------- | --------- |
+   | Cache-first (7 days) | `GET /curriculum/catalogue` | static reference data |
+   | Network-only | `/assessments/*`, `/scores/*`, `/runs/*`, `/auth/*` | live data + mutations must never be stale on shared devices |
+   | Network-first (5 min TTL) | `/classes/*`, `/learners/*` | offline fallback that ages out quickly |
+
+   Workbox runtime routes only intercept GETs; POST/PATCH/DELETE always
+   hit the network.
 
 ## Authentication flow
 

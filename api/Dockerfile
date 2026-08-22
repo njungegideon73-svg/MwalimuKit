@@ -15,11 +15,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Install just the dependencies (not the app itself)
 COPY api/pyproject.toml ./
 RUN pip install --no-cache-dir \
-    fastapi uvicorn pydantic pydantic-settings \
+    fastapi uvicorn pydantic pydantic-settings gunicorn \
     sqlalchemy asyncpg psycopg[binary] alembic redis \
     python-jose passlib[argon2] python-multipart httpx \
     openai anthropic structlog email-validator \
-    reportlab stripe python-docx python-dotenv argon2-cffi
+    reportlab stripe python-docx python-dotenv argon2-cffi \
+    sentry-sdk
 
 # ── Runtime stage ───────────────────────────
 FROM python:3.12-slim

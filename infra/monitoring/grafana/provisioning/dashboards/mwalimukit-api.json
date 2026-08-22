@@ -1,0 +1,82 @@
+{
+  "id": null,
+  "title": "MwalimuKit — API Overview",
+  "tags": ["mwalimukit", "api"],
+  "timezone": "browser",
+  "schema": {
+    "version": 30,
+    "title": "MwalimuKit — API Overview",
+    "panels": [
+      {
+        "id": 1,
+        "type": "stat",
+        "title": "Current RPS",
+        "gridPos": { "x": 0, "y": 0, "w": 4, "h": 4 },
+        "targets": [
+          {
+            "expr": "rate(mwalimukit_http_requests_total[1m])",
+            "legendFormat": "RPS"
+          }
+        ],
+        "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
+      },
+      {
+        "id": 2,
+        "type": "stat",
+        "title": "Error Rate (5xx)",
+        "gridPos": { "x": 4, "y": 0, "w": 4, "h": 4 },
+        "targets": [
+          {
+            "expr": "rate(mwalimukit_http_requests_total{status=~\"5..\"}[2m])",
+            "legendFormat": "errors"
+          }
+        ],
+        "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "none" }
+      },
+      {
+        "id": 3,
+        "type": "stat",
+        "title": "Rate-Limited Requests",
+        "gridPos": { "x": 8, "y": 0, "w": 4, "h": 4 },
+        "targets": [
+          { "expr": "rate(mwalimukit_rate_limited_total[5m])", "legendFormat": "rate-limited" }
+        ],
+        "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
+      },
+      {
+        "id": 4,
+        "type": "stat",
+        "title": "Uptime (seconds)",
+        "gridPos": { "x": 12, "y": 0, "w": 4, "h": 4 },
+        "targets": [
+          { "expr": "mwalimukit_uptime_seconds", "legendFormat": "uptime" }
+        ],
+        "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
+      },
+      {
+        "id": 5,
+        "type": "timeseries",
+        "title": "p95 Latency (seconds)",
+        "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(mwalimukit_http_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "p95"
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "type": "timeseries",
+        "title": "HTTP Requests by Status",
+        "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
+        "targets": [
+          {
+            "expr": "rate(mwalimukit_http_requests_total[1m])",
+            "legendFormat": "{{status}}"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.rate_limit import _get_redis
+from app.core.sanitization import sanitize_dict
 from app.core.security import (
     create_access_token,
     create_refresh_token,
@@ -16,6 +17,7 @@ from app.core.security import (
     hash_password,
     verify_password,
 )
+from app.core.sessions import create_session, revoke_session, revoke_all_sessions
 from app.models.school import School
 from app.models.user import User, UserRole
 from app.schemas.auth import SignupRequest, TokenPair, UserOut
@@ -48,7 +50,7 @@ async def _revoke_refresh(jti: str) -> None:
         pass
 
 
-async def signup(db: AsyncSession, payload: SignupRequest) -> TokenPair:
+async def signup(db: AsyncSession, payload: SignupRequest, user_agent: str | None = None) -> TokenPair:
     school = (
         await db.execute(select(School).where(School.code == payload.school_code))
     ).scalar_one_or_none()
@@ -71,19 +73,19 @@ async def signup(db: AsyncSession, payload: SignupRequest) -> TokenPair:
     await db.commit()
     await db.refresh(user)
 
-    return _pair(user)
+    return await _pair_with_session(user, user_agent)
 
 
-async def login(db: AsyncSession, *, email: str, password: str) -> TokenPair:
+async def login(db: AsyncSession, *, email: str, password: str, user_agent: str | None = None) -> TokenPair:
     user = (
         await db.execute(select(User).where(User.email == email, User.is_active.is_(True)))
     ).scalar_one_or_none()
     if user is None or not verify_password(password, user.password_hash):
         raise ValueError("Invalid email or password.")
-    return _pair(user)
+    return await _pair_with_session(user, user_agent)
 
 
-async def refresh_tokens(db: AsyncSession, refresh_token: str) -> TokenPair:
+async def refresh_tokens(db: AsyncSession, refresh_token: str, user_agent: str | None = None) -> TokenPair:
     try:
         payload = decode_token(refresh_token)
     except JWTError as exc:
@@ -106,17 +108,35 @@ async def refresh_tokens(db: AsyncSession, refresh_token: str) -> TokenPair:
     if user is None:
         raise ValueError("User not found or deactivated.")
 
+    if payload.get("ver", 0) != user.token_version:
+        raise ValueError("Session has been revoked. Please log in again.")
+
     if jti:
         await _revoke_refresh(jti)
 
-    return _pair(user)
+    return await _pair_with_session(user, user_agent)
+
+
+async def _pair_with_session(user: User, user_agent: str | None = None) -> TokenPair:
+    """Create a token pair and register a server-side session."""
+    pair = _pair(user)
+    # Extract the refresh-token jti to bind the session to it.
+    try:
+        payload = decode_token(pair.refresh_token)
+        jti = payload.get("jti")
+    except JWTError:
+        jti = None
+    await create_session(str(user.id), jti)
+    return pair
 
 
 def _pair(user: User) -> TokenPair:
     role = user.role.value if hasattr(user.role, "value") else str(user.role)
     return TokenPair(
-        access_token=create_access_token(str(user.id), role=role, school_id=str(user.school_id)),
-        refresh_token=create_refresh_token(str(user.id)),
+        access_token=create_access_token(
+            str(user.id), role=role, school_id=str(user.school_id), token_version=user.token_version
+        ),
+        refresh_token=create_refresh_token(str(user.id), token_version=user.token_version),
         user=UserOut(
             id=user.id,
             school_id=user.school_id,
@@ -125,3 +145,6 @@ def _pair(user: User) -> TokenPair:
             role=role,
         ),
     )
+
+
+pair_for_user = _pair_with_session

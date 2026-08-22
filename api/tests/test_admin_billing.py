@@ -7,8 +7,8 @@ from uuid import uuid4
 
 
 @pytest.mark.asyncio
-async def test_dashboard_returns_counts(client: AsyncClient, auth_headers: dict):
-    resp = await client.get("/api/v1/admin/dashboard", headers=auth_headers)
+async def test_dashboard_returns_counts(client: AsyncClient, admin_auth_headers: dict):
+    resp = await client.get("/api/v1/admin/dashboard", headers=admin_auth_headers)
     assert resp.status_code == 200
     data = resp.json()
     for key in ("total_learners", "total_classes", "total_assessments", "total_runs", "total_scores"):
@@ -16,14 +16,21 @@ async def test_dashboard_returns_counts(client: AsyncClient, auth_headers: dict)
 
 
 @pytest.mark.asyncio
-async def test_dashboard_empty_school(client: AsyncClient, auth_headers: dict):
-    resp = await client.get("/api/v1/admin/dashboard", headers=auth_headers)
+async def test_dashboard_empty_school(client: AsyncClient, admin_auth_headers: dict):
+    resp = await client.get("/api/v1/admin/dashboard", headers=admin_auth_headers)
+    assert resp.status_code == 200
     data = resp.json()
     assert data["total_learners"] == 0
     assert data["total_classes"] == 0
     assert data["total_assessments"] == 0
     assert data["total_runs"] == 0
     assert data["total_scores"] == 0
+
+
+@pytest.mark.asyncio
+async def test_dashboard_forbidden_for_teacher(client: AsyncClient, auth_headers: dict):
+    resp = await client.get("/api/v1/admin/dashboard", headers=auth_headers)
+    assert resp.status_code == 403
 
 
 @pytest.mark.asyncio

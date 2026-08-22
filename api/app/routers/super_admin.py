@@ -1,23 +1,22 @@
 """Super admin router - Full system management."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from uuid import UUID, uuid4
-
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_db
 from app.core.deps import SuperAdminUser
-from app.core.security import hash_password
+from app.core.metrics import inc_business_counter
 from app.models.activity_log import ActivityLog
 from app.models.learner import Learner
 from app.models.school import School
 from app.models.school_class import SchoolClass
 from app.models.user import User, UserRole
+from app.schemas.auth import validate_password_strength
 from app.schemas.classes import ActivityLogOut, LearnerOut
+from app.services import admin as admin_service
 from app.utils.activity_logger import log_activity
 
 
@@ -56,6 +55,11 @@ class UserCreate(BaseModel):
     role: str = Field(default="teacher")
     school_id: str | None = None
     school_code: str | None = None
+
+    @field_validator("password")
+    @classmethod
+    def password_complexity(cls, v: str) -> str:
+        return validate_password_strength(v)
 
 
 class UserUpdate(BaseModel):
@@ -123,7 +127,7 @@ class DashboardOut(BaseModel):
 async def list_schools(
     admin: SuperAdminUser,
     db: AsyncSession = Depends(get_db),
-    search: str | None = Query(default=None),
+    search: str | None = Query(default=None, max_length=100),
     offset: int = Query(default=0, ge=0),
     limit: int = Query(default=50, ge=1, le=200),
 ) -> list[SchoolOut]:
@@ -153,22 +157,13 @@ async def create_school(
     admin: SuperAdminUser,
     db: AsyncSession = Depends(get_db),
 ) -> SchoolOut:
-    existing = (
-        await db.execute(select(School).where(School.code == payload.code))
-    ).scalar_one_or_none()
-    if existing:
-        raise HTTPException(status_code=400, detail="School code already exists")
+    try:
+        school = await admin_service.create_school(
+            db, name=payload.name, code=payload.code, county=payload.county, level=payload.level
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from None
 
-    school = School(
-        id=uuid4(),
-        name=payload.name,
-        code=payload.code,
-        county=payload.county,
-        level=payload.level,
-    )
-    db.add(school)
-    await db.commit()
-    await db.refresh(school)
     await log_activity(
         db,
         user_id=admin.id,
@@ -193,19 +188,18 @@ async def update_school(
     admin: SuperAdminUser,
     db: AsyncSession = Depends(get_db),
 ) -> SchoolOut:
-    school = (
-        await db.execute(select(School).where(School.id == school_id))
-    ).scalar_one_or_none()
+    school = await admin_service.get_school(db, school_id)
     if not school:
         raise HTTPException(status_code=404, detail="School not found")
 
-    if payload.code and payload.code != school.code:
-        existing = (
-            await db.execute(select(School).where(School.code == payload.code))
-        ).scalar_one_or_none()
-        if existing:
-            raise HTTPException(status_code=400, detail="School code already exists")
-        school.code = payload.code
+    try:
+        if payload.code and payload.code != school.code:
+            await admin_service.ensure_school_code_available(
+                db, payload.code, exclude_school_id=school.id
+            )
+            school.code = payload.code
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from None
 
     if payload.name is not None:
         school.name = payload.name
@@ -239,9 +233,7 @@ async def delete_school(
     admin: SuperAdminUser,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    school = (
-        await db.execute(select(School).where(School.id == school_id))
-    ).scalar_one_or_none()
+    school = await admin_service.get_school(db, school_id)
     if not school:
         raise HTTPException(status_code=404, detail="School not found")
 
@@ -274,7 +266,7 @@ async def delete_school(
 async def list_users(
     admin: SuperAdminUser,
     db: AsyncSession = Depends(get_db),
-    search: str | None = Query(default=None),
+    search: str | None = Query(default=None, max_length=100),
     role: str | None = Query(default=None),
     school_id: str | None = Query(default=None),
     is_active: bool | None = Query(default=None),
@@ -294,18 +286,7 @@ async def list_users(
         query = query.where(User.is_active == is_active)
     query = query.offset(offset).limit(limit)
     rows = (await db.execute(query)).scalars().all()
-    return [
-        UserOut(
-            id=str(u.id),
-            school_id=str(u.school_id),
-            email=u.email,
-            full_name=u.full_name,
-            role=u.role.value if hasattr(u.role, "value") else str(u.role),
-            is_active=u.is_active,
-            created_at=u.created_at.isoformat(),
-        )
-        for u in rows
-    ]
+    return [UserOut(**admin_service.serialize_user(u)) for u in rows]
 
 
 @router.post("/users", response_model=UserOut, status_code=201)
@@ -314,57 +295,42 @@ async def create_user(
     admin: SuperAdminUser,
     db: AsyncSession = Depends(get_db),
 ) -> UserOut:
-    existing = (
-        await db.execute(select(User).where(User.email == payload.email))
-    ).scalar_one_or_none()
-    if existing:
-        raise HTTPException(status_code=400, detail="Email already registered")
-
-    school_id = None
-    if payload.school_id:
-        school_id = payload.school_id
-    elif payload.school_code:
+    school_id = payload.school_id
+    if not school_id:
+        if not payload.school_code:
+            raise HTTPException(status_code=400, detail="Either school_id or school_code is required")
         school = (
             await db.execute(select(School).where(School.code == payload.school_code))
         ).scalar_one_or_none()
         if not school:
             raise HTTPException(status_code=400, detail="School code not found")
         school_id = str(school.id)
-    else:
-        raise HTTPException(status_code=400, detail="Either school_id or school_code is required")
 
     try:
-        role = UserRole(payload.role)
-    except ValueError:
-        raise HTTPException(status_code=400, detail=f"Invalid role: {payload.role}")
+        role = admin_service.parse_role(payload.role)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from None
 
-    user = User(
-        id=uuid4(),
-        school_id=school_id,
-        email=payload.email,
-        full_name=payload.full_name,
-        role=role,
-        password_hash=hash_password(payload.password),
-    )
-    db.add(user)
-    await db.commit()
-    await db.refresh(user)
+    try:
+        user = await admin_service.create_user(
+            db,
+            school_id=school_id,
+            email=payload.email,
+            full_name=payload.full_name,
+            password=payload.password,
+            role=role,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from None
+
     await log_activity(
         db,
         user_id=admin.id,
         school_id=user.school_id,
         action="user.created",
-        details={"email": user.email, "role": str(user.role.value if hasattr(user.role, "value") else user.role)},
+        details={"email": user.email, "role": admin_service.user_role_str(user)},
     )
-    return UserOut(
-        id=str(user.id),
-        school_id=str(user.school_id),
-        email=user.email,
-        full_name=user.full_name,
-        role=user.role.value if hasattr(user.role, "value") else str(user.role),
-        is_active=user.is_active,
-        created_at=user.created_at.isoformat(),
-    )
+    return UserOut(**admin_service.serialize_user(user))
 
 
 @router.patch("/users/{user_id}", response_model=UserOut)
@@ -374,9 +340,7 @@ async def update_user(
     admin: SuperAdminUser,
     db: AsyncSession = Depends(get_db),
 ) -> UserOut:
-    user = (
-        await db.execute(select(User).where(User.id == user_id))
-    ).scalar_one_or_none()
+    user = await admin_service.get_user(db, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
@@ -384,9 +348,9 @@ async def update_user(
         user.full_name = payload.full_name
     if payload.role is not None:
         try:
-            user.role = UserRole(payload.role)
-        except ValueError:
-            raise HTTPException(status_code=400, detail=f"Invalid role: {payload.role}")
+            user.role = admin_service.parse_role(payload.role)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from None
     if payload.is_active is not None:
         user.is_active = payload.is_active
     if payload.school_id is not None:
@@ -399,17 +363,9 @@ async def update_user(
         user_id=admin.id,
         school_id=user.school_id,
         action="user.updated",
-        details={"email": user.email, "role": str(user.role.value if hasattr(user.role, "value") else user.role)},
+        details={"email": user.email, "role": admin_service.user_role_str(user)},
     )
-    return UserOut(
-        id=str(user.id),
-        school_id=str(user.school_id),
-        email=user.email,
-        full_name=user.full_name,
-        role=user.role.value if hasattr(user.role, "value") else str(user.role),
-        is_active=user.is_active,
-        created_at=user.created_at.isoformat(),
-    )
+    return UserOut(**admin_service.serialize_user(user))
 
 
 @router.delete("/users/{user_id}")
@@ -418,9 +374,7 @@ async def deactivate_user(
     admin: SuperAdminUser,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    user = (
-        await db.execute(select(User).where(User.id == user_id))
-    ).scalar_one_or_none()
+    user = await admin_service.get_user(db, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
@@ -446,7 +400,7 @@ async def list_all_learners(
     admin: SuperAdminUser,
     db: AsyncSession = Depends(get_db),
     school_id: str | None = Query(default=None),
-    search: str | None = Query(default=None),
+    search: str | None = Query(default=None, max_length=100),
     offset: int = Query(default=0, ge=0),
     limit: int = Query(default=50, ge=1, le=200),
 ) -> list[LearnerOut]:
@@ -457,18 +411,7 @@ async def list_all_learners(
         query = query.where(Learner.full_name.ilike(f"%{search}%"))
     query = query.offset(offset).limit(limit)
     rows = (await db.execute(query)).scalars().all()
-    return [
-        LearnerOut(
-            id=str(l.id),
-            school_id=str(l.school_id),
-            class_id=str(l.class_id),
-            full_name=l.full_name,
-            admission_no=l.admission_no,
-            gender=l.gender,
-            deleted_at=l.deleted_at.isoformat() if l.deleted_at else None,
-        )
-        for l in rows
-    ]
+    return [LearnerOut(**admin_service.serialize_learner(l)) for l in rows]
 
 
 @router.post("/learners", response_model=LearnerOut, status_code=201)
@@ -477,30 +420,22 @@ async def create_learner(
     admin: SuperAdminUser,
     db: AsyncSession = Depends(get_db),
 ) -> LearnerOut:
-    school = (
-        await db.execute(select(School).where(School.id == payload.school_id))
-    ).scalar_one_or_none()
+    school = await admin_service.get_school(db, payload.school_id)
     if not school:
         raise HTTPException(status_code=400, detail="School not found")
 
-    if payload.class_id:
-        class_obj = (
-            await db.execute(select(SchoolClass).where(SchoolClass.id == payload.class_id))
-        ).scalar_one_or_none()
-        if not class_obj:
-            raise HTTPException(status_code=400, detail="Class not found")
+    try:
+        learner = await admin_service.create_learner(
+            db,
+            school_id=payload.school_id,
+            class_id=payload.class_id,
+            full_name=payload.full_name,
+            admission_no=payload.admission_no,
+            gender=payload.gender,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from None
 
-    learner = Learner(
-        id=uuid4(),
-        school_id=payload.school_id,
-        class_id=payload.class_id,
-        full_name=payload.full_name,
-        admission_no=payload.admission_no,
-        gender=payload.gender,
-    )
-    db.add(learner)
-    await db.commit()
-    await db.refresh(learner)
     await log_activity(
         db,
         user_id=admin.id,
@@ -508,15 +443,7 @@ async def create_learner(
         action="learner.created",
         details={"full_name": learner.full_name, "class_id": str(learner.class_id)},
     )
-    return LearnerOut(
-        id=str(learner.id),
-        school_id=str(learner.school_id),
-        class_id=str(learner.class_id),
-        full_name=learner.full_name,
-        admission_no=learner.admission_no,
-        gender=learner.gender,
-        deleted_at=None,
-    )
+    return LearnerOut(**admin_service.serialize_learner(learner))
 
 
 @router.patch("/learners/{learner_id}", response_model=LearnerOut)
@@ -526,25 +453,19 @@ async def update_learner(
     admin: SuperAdminUser,
     db: AsyncSession = Depends(get_db),
 ) -> LearnerOut:
-    learner = (
-        await db.execute(select(Learner).where(Learner.id == learner_id, Learner.deleted_at.is_(None)))
-    ).scalar_one_or_none()
+    learner = await admin_service.get_active_learner(db, learner_id)
     if not learner:
         raise HTTPException(status_code=404, detail="Learner not found")
 
-    if payload.full_name is not None:
-        learner.full_name = payload.full_name
-    if payload.school_id is not None:
-        learner.school_id = payload.school_id
-    if payload.class_id is not None:
-        learner.class_id = payload.class_id
-    if payload.admission_no is not None:
-        learner.admission_no = payload.admission_no
-    if payload.gender is not None:
-        learner.gender = payload.gender
-
-    await db.commit()
-    await db.refresh(learner)
+    await admin_service.update_learner(
+        db,
+        learner,
+        school_id=payload.school_id,
+        class_id=payload.class_id,
+        full_name=payload.full_name,
+        admission_no=payload.admission_no,
+        gender=payload.gender,
+    )
     await log_activity(
         db,
         user_id=admin.id,
@@ -552,15 +473,7 @@ async def update_learner(
         action="learner.updated",
         details={"full_name": learner.full_name, "class_id": str(learner.class_id)},
     )
-    return LearnerOut(
-        id=str(learner.id),
-        school_id=str(learner.school_id),
-        class_id=str(learner.class_id),
-        full_name=learner.full_name,
-        admission_no=learner.admission_no,
-        gender=learner.gender,
-        deleted_at=None,
-    )
+    return LearnerOut(**admin_service.serialize_learner(learner))
 
 
 @router.delete("/learners/{learner_id}")
@@ -569,13 +482,11 @@ async def delete_learner(
     admin: SuperAdminUser,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    learner = (
-        await db.execute(select(Learner).where(Learner.id == learner_id, Learner.deleted_at.is_(None)))
-    ).scalar_one_or_none()
+    learner = await admin_service.get_active_learner(db, learner_id)
     if not learner:
         raise HTTPException(status_code=404, detail="Learner not found")
 
-    learner.deleted_at = datetime.now(timezone.utc)
+    await admin_service.soft_delete_learner(db, learner)
     await log_activity(
         db,
         user_id=admin.id,
@@ -583,7 +494,6 @@ async def delete_learner(
         action="learner.deleted",
         details={"full_name": learner.full_name},
     )
-    await db.commit()
     return {"ok": True, "message": "Learner deleted"}
 
 
@@ -647,6 +557,8 @@ async def get_dashboard(
         await db.execute(select(func.count()).select_from(SchoolClass).where(SchoolClass.deleted_at.is_(None)))
     ).scalar() or 0
 
+    inc_business_counter("super_admin_dashboard_views_total")
+
     recent_activities = (
         await db.execute(
             select(ActivityLog).order_by(ActivityLog.created_at.desc()).limit(limit)
@@ -682,7 +594,7 @@ async def list_activities(
     school_id: str | None = Query(default=None),
     user_id: str | None = Query(default=None),
     action: str | None = Query(default=None),
-    search: str | None = Query(default=None),
+    search: str | None = Query(default=None, max_length=100),
     offset: int = Query(default=0, ge=0),
     limit: int = Query(default=50, ge=1, le=200),
 ) -> list[ActivityLogOut]:

@@ -4,6 +4,7 @@ import { ArrowLeft, RefreshCw, Cloud, CloudOff } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api';
 import { db } from '@/lib/db';
+import type { Syncable } from '@/lib/db';
 import { useOnlineStatus } from '@/features/assess/hooks';
 import toast from 'react-hot-toast';
 import type { Learner, Assessment, AssessmentRun, Score } from '@mwalimukit/types';
@@ -101,7 +102,7 @@ export function ScoreEntryPage() {
           closed_at: null,
         };
         setRun(offlineRun);
-        await db.runs.add({ ...offlineRun, _dirty: true, _synced_at: null });
+        await db.runs.add({ ...offlineRun, _dirty: 1, _synced_at: null });
       }
     };
 
@@ -133,7 +134,7 @@ export function ScoreEntryPage() {
       }));
 
       const scoreId = `${run.id}_${learnerId}_${itemId}`;
-      const scoreData: Score & { _dirty: boolean; _synced_at: string | null } = {
+      const scoreData: Syncable<Score> = {
         id: scoreId,
         run_id: run.id,
         learner_id: learnerId,
@@ -141,7 +142,7 @@ export function ScoreEntryPage() {
         level: level as 1 | 2 | 3 | 4 | null,
         note: null,
         updated_at: new Date().toISOString(),
-        _dirty: true,
+        _dirty: 1,
         _synced_at: null,
       };
 
@@ -198,7 +199,7 @@ export function ScoreEntryPage() {
       });
 
       for (const s of dirtyScores) {
-        await db.scores.update(s.id, { _dirty: false, _synced_at: new Date().toISOString() });
+        await db.scores.update(s.id, { _dirty: 0, _synced_at: new Date().toISOString() });
       }
 
       if (result.conflicts > 0 && result.conflicted_rows) {
@@ -218,7 +219,7 @@ export function ScoreEntryPage() {
             level: cr.server_level as 1 | 2 | 3 | 4 | null,
             note: null,
             updated_at: cr.server_updated_at,
-            _dirty: false,
+            _dirty: 0,
             _synced_at: new Date().toISOString(),
           });
         }

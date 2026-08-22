@@ -101,4 +101,23 @@ export async function apiFetch<T>(path: string, opts: FetchOptions = {}): Promis
   return res.json() as Promise<T>;
 }
 
-export { ApiError, clearTokens, saveTokens, getTokens };
+/**
+ * Revoke the refresh token server-side. Best-effort: local tokens are
+ * cleared regardless of network outcome.
+ */
+async function logoutApi(): Promise<void> {
+  const { refresh } = getTokens();
+  clearTokens();
+  if (!refresh) return;
+  try {
+    await fetch(`${API_BASE}/auth/logout`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: refresh }),
+    });
+  } catch {
+    // offline / server unreachable — local logout already happened
+  }
+}
+
+export { ApiError, clearTokens, saveTokens, getTokens, logoutApi };

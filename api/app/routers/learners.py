@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_db
 from app.core.deps import CurrentUser
+from app.core.sanitization import sanitize_text
 from app.models.learner import Learner
 from app.models.school_class import SchoolClass
 from app.models.user import UserRole
@@ -100,8 +101,8 @@ async def add_learner(payload: LearnerIn, user: CurrentUser, db: AsyncSession = 
         id=uuid4(),
         school_id=user.school_id,
         class_id=payload.class_id,
-        full_name=payload.full_name.strip(),
-        admission_no=payload.admission_no,
+        full_name=sanitize_text(payload.full_name.strip(), max_length=120) or payload.full_name.strip(),
+        admission_no=sanitize_text(payload.admission_no) if payload.admission_no else None,
         gender=payload.gender,
     )
     db.add(l)
@@ -127,14 +128,15 @@ async def bulk_add(payload: LearnerBulkIn, user: CurrentUser, db: AsyncSession =
             continue
         if "," in raw:
             name, _, adm = raw.partition(",")
-            adm = adm.strip() or None
+            name = sanitize_text(name.strip(), max_length=120) or name.strip()
+            adm = sanitize_text(adm.strip()) if adm.strip() else None
         else:
-            name, adm = raw, None
+            name, adm = sanitize_text(raw, max_length=120) or raw, None
         l = Learner(
             id=uuid4(),
             school_id=user.school_id,
             class_id=payload.class_id,
-            full_name=name.strip(),
+            full_name=name,
             admission_no=adm,
         )
         db.add(l)
@@ -167,8 +169,8 @@ async def update_learner(
     ).scalar_one_or_none()
     if l is None:
         raise HTTPException(status_code=404, detail="Learner not found")
-    l.full_name = payload.full_name.strip()
-    l.admission_no = payload.admission_no
+    l.full_name = sanitize_text(payload.full_name.strip(), max_length=120) or payload.full_name.strip()
+    l.admission_no = sanitize_text(payload.admission_no) if payload.admission_no else None
     l.gender = payload.gender
     await db.commit()
     await db.refresh(l)

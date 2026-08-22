@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { User } from '@mwalimukit/types';
-import { apiFetch, saveTokens, clearTokens, getTokens } from '@/lib/api';
+import { apiFetch, saveTokens, clearTokens, getTokens, logoutApi } from '@/lib/api';
 import { db } from '@/lib/db';
 import { invalidateCurriculumCache } from '@/lib/curriculum';
 
@@ -45,6 +45,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   logout: async () => {
+    await logoutApi(); // revoke refresh token server-side (best-effort)
     clearTokens();
     invalidateCurriculumCache();
     await db.delete();

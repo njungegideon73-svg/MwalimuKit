@@ -1,46 +1,101 @@
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '@/lib/auth-store';
 import { useFeatureFlags } from '@/lib/feature-flags';
 import { apiFetch } from '@/lib/api';
 import { useSessionTimeout } from '@/hooks/useSessionTimeout';
-import { LoginPage } from '@/pages/LoginPage';
-import { SignupPage } from '@/pages/SignupPage';
-import { DashboardPage } from '@/pages/DashboardPage';
-import { AssessmentsPage } from '@/pages/AssessmentsPage';
-import { AssessmentDetailPage } from '@/pages/AssessmentDetailPage';
-import { AssessmentNewPage } from '@/pages/AssessmentNewPage';
-import { ClassesPage } from '@/pages/ClassesPage';
-import { ClassDetailPage } from '@/pages/ClassDetailPage';
-import { ScoreEntryPage } from '@/pages/ScoreEntryPage';
-import { SettingsPage } from '@/pages/SettingsPage';
-import { PrivacyPolicyPage } from '@/pages/PrivacyPolicyPage';
-import { AITransparencyPage } from '@/pages/AITransparencyPage';
-import { AdminDashboardPage } from '@/pages/AdminDashboardPage';
-import { RoadmapPage } from '@/pages/RoadmapPage';
-import { BillingPage } from '@/pages/BillingPage';
-import { ReportCardPage } from '@/pages/ReportCardPage';
 import { Layout } from '@/components/Layout';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { RoleBasedRoute } from '@/components/RoleBasedRoute';
-import { SBADashboardPage } from '@/pages/SBADashboardPage';
-import { SBAMarksEntryPage } from '@/pages/SBAMarksEntryPage';
-import { SBAReportCardPage } from '@/pages/SBAReportCardPage';
-import { SBAClassAnalyticsPage } from '@/pages/SBAClassAnalyticsPage';
+
+// Route-level code splitting: every page is loaded on demand so the initial
+// bundle stays small on low-bandwidth connections.
+const LoginPage = lazy(() => import('@/pages/LoginPage').then((m) => ({ default: m.LoginPage })));
+const SignupPage = lazy(() => import('@/pages/SignupPage').then((m) => ({ default: m.SignupPage })));
+const DashboardPage = lazy(() => import('@/pages/DashboardPage').then((m) => ({ default: m.DashboardPage })));
+const AssessmentsPage = lazy(() => import('@/pages/AssessmentsPage').then((m) => ({ default: m.AssessmentsPage })));
+const AssessmentDetailPage = lazy(() =>
+  import('@/pages/AssessmentDetailPage').then((m) => ({ default: m.AssessmentDetailPage })),
+);
+const AssessmentNewPage = lazy(() =>
+  import('@/pages/AssessmentNewPage').then((m) => ({ default: m.AssessmentNewPage })),
+);
+const ClassesPage = lazy(() => import('@/pages/ClassesPage').then((m) => ({ default: m.ClassesPage })));
+const ClassDetailPage = lazy(() => import('@/pages/ClassDetailPage').then((m) => ({ default: m.ClassDetailPage })));
+const ScoreEntryPage = lazy(() => import('@/pages/ScoreEntryPage').then((m) => ({ default: m.ScoreEntryPage })));
+const SettingsPage = lazy(() => import('@/pages/SettingsPage').then((m) => ({ default: m.SettingsPage })));
+const PrivacyPolicyPage = lazy(() =>
+  import('@/pages/PrivacyPolicyPage').then((m) => ({ default: m.PrivacyPolicyPage })),
+);
+const AITransparencyPage = lazy(() =>
+  import('@/pages/AITransparencyPage').then((m) => ({ default: m.AITransparencyPage })),
+);
+const AdminDashboardPage = lazy(() =>
+  import('@/pages/AdminDashboardPage').then((m) => ({ default: m.AdminDashboardPage })),
+);
+const RoadmapPage = lazy(() => import('@/pages/RoadmapPage').then((m) => ({ default: m.RoadmapPage })));
+const BillingPage = lazy(() => import('@/pages/BillingPage').then((m) => ({ default: m.BillingPage })));
+const ReportCardPage = lazy(() => import('@/pages/ReportCardPage').then((m) => ({ default: m.ReportCardPage })));
+const SBADashboardPage = lazy(() =>
+  import('@/pages/SBADashboardPage').then((m) => ({ default: m.SBADashboardPage })),
+);
+const SBAMarksEntryPage = lazy(() =>
+  import('@/pages/SBAMarksEntryPage').then((m) => ({ default: m.SBAMarksEntryPage })),
+);
+const SBAReportCardPage = lazy(() =>
+  import('@/pages/SBAReportCardPage').then((m) => ({ default: m.SBAReportCardPage })),
+);
+const SBAClassAnalyticsPage = lazy(() =>
+  import('@/pages/SBAClassAnalyticsPage').then((m) => ({ default: m.SBAClassAnalyticsPage })),
+);
 
 // Admin Console Pages
-import { SuperAdminDashboardPage } from '@/pages/admin/SuperAdminDashboardPage';
-import { SchoolsManagementPage } from '@/pages/admin/SchoolsManagementPage';
-import { UsersManagementPage } from '@/pages/admin/UsersManagementPage';
-import { LearnersManagementPage } from '@/pages/admin/LearnersManagementPage';
-import { SystemSettingsPage } from '@/pages/admin/SystemSettingsPage';
+const SuperAdminDashboardPage = lazy(() =>
+  import('@/pages/admin/SuperAdminDashboardPage').then((m) => ({ default: m.SuperAdminDashboardPage })),
+);
+const SchoolsManagementPage = lazy(() =>
+  import('@/pages/admin/SchoolsManagementPage').then((m) => ({ default: m.SchoolsManagementPage })),
+);
+const UsersManagementPage = lazy(() =>
+  import('@/pages/admin/UsersManagementPage').then((m) => ({ default: m.UsersManagementPage })),
+);
+const LearnersManagementPage = lazy(() =>
+  import('@/pages/admin/LearnersManagementPage').then((m) => ({ default: m.LearnersManagementPage })),
+);
+const SystemSettingsPage = lazy(() =>
+  import('@/pages/admin/SystemSettingsPage').then((m) => ({ default: m.SystemSettingsPage })),
+);
 
 // School Admin Pages
-import { SchoolAdminDashboardPage } from '@/pages/school-admin/SchoolAdminDashboardPage';
-import { TeachersManagementPage } from '@/pages/school-admin/TeachersManagementPage';
-import { SchoolLearnersManagementPage } from '@/pages/school-admin/SchoolLearnersManagementPage';
-import { SchoolClassesManagementPage } from '@/pages/school-admin/SchoolClassesManagementPage';
+const SchoolAdminDashboardPage = lazy(() =>
+  import('@/pages/school-admin/SchoolAdminDashboardPage').then((m) => ({
+    default: m.SchoolAdminDashboardPage,
+  })),
+);
+const TeachersManagementPage = lazy(() =>
+  import('@/pages/school-admin/TeachersManagementPage').then((m) => ({
+    default: m.TeachersManagementPage,
+  })),
+);
+const SchoolLearnersManagementPage = lazy(() =>
+  import('@/pages/school-admin/SchoolLearnersManagementPage').then((m) => ({
+    default: m.SchoolLearnersManagementPage,
+  })),
+);
+const SchoolClassesManagementPage = lazy(() =>
+  import('@/pages/school-admin/SchoolClassesManagementPage').then((m) => ({
+    default: m.SchoolClassesManagementPage,
+  })),
+);
+
+function PageFallback() {
+  return (
+    <div className="flex min-h-[50vh] items-center justify-center">
+      <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary-200 border-t-primary-600" />
+    </div>
+  );
+}
 
 function InactivityModal() {
   const { isWarning, countdown, dismissWarning } = useSessionTimeout({
@@ -156,8 +211,9 @@ export default function App() {
     <>
       <InactivityModal />
       <CapacitorBackButton />
-      <Routes>
-      <Route path="/login" element={<LoginPage />} />
+      <Suspense fallback={<PageFallback />}>
+        <Routes>
+        <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<SignupPage />} />
       <Route
         path="/*"
@@ -269,6 +325,7 @@ export default function App() {
         }
       />
       </Routes>
+      </Suspense>
     </>
   );
 }

@@ -154,11 +154,15 @@ def event_loop():
 
 @pytest_asyncio.fixture(autouse=True)
 async def setup_db():
+    from app.core.rate_limit import reset_rate_limits
+
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
+    # Isolate in-process rate-limit / lockout state between tests.
+    reset_rate_limits()
 
 
 @pytest_asyncio.fixture
@@ -307,6 +311,29 @@ async def test_learner(db_session: AsyncSession, test_class: SchoolClass, test_s
 @pytest_asyncio.fixture
 async def auth_headers(test_user: User) -> dict[str, str]:
     token = create_access_token(str(test_user.id))
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest_asyncio.fixture
+async def test_school_admin(db_session: AsyncSession, test_school: School) -> User:
+    admin = User(
+        id=uuid4(),
+        school_id=test_school.id,
+        email="schooladmin@test.com",
+        full_name="School Admin",
+        role=UserRole.school_admin,
+        password_hash=hash_password("testpassword123"),
+        is_active=True,
+    )
+    db_session.add(admin)
+    await db_session.commit()
+    await db_session.refresh(admin)
+    return admin
+
+
+@pytest_asyncio.fixture
+async def admin_auth_headers(test_school_admin: User) -> dict[str, str]:
+    token = create_access_token(str(test_school_admin.id))
     return {"Authorization": f"Bearer {token}"}
 
 

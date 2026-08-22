@@ -1,14 +1,18 @@
-"""School admin dashboard + public roadmap endpoints."""
+"""School admin dashboard + public roadmap + activity log endpoints."""
 from __future__ import annotations
 
+from datetime import datetime
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_db
 from app.core.deps import CurrentUser, SchoolAdminUser
+from app.core.metrics import inc_business_counter
+from app.models.activity_log import ActivityLog
 from app.models.assessment import Assessment
 from app.models.feature_request import FeatureRequest
 from app.models.feature_vote import FeatureVote
@@ -16,10 +20,18 @@ from app.models.learner import Learner
 from app.models.run import AssessmentRun
 from app.models.school_class import SchoolClass
 from app.models.score import Score
+from app.schemas.classes import ActivityLogOut
 from app.schemas.roadmap import FeatureRequestIn, FeatureRequestOut
 
 
 router = APIRouter()
+
+
+class ActivityLogPage(BaseModel):
+    total: int
+    offset: int
+    limit: int
+    items: list[ActivityLogOut]
 
 
 # ── Dashboard ────────────────────────────────────────────────────────────────
@@ -68,6 +80,8 @@ async def admin_dashboard(user: SchoolAdminUser, db: AsyncSession = Depends(get_
         )
     ).scalar() or 0
 
+    inc_business_counter("dashboard_views_total", {"role": "school_admin"})
+
     recent_assessments_rows = (
         await db.execute(
             select(Assessment)
@@ -110,6 +124,64 @@ async def admin_dashboard(user: SchoolAdminUser, db: AsyncSession = Depends(get_
         "recent_assessments": recent_assessments,
         "recent_runs": recent_runs,
     }
+
+
+# ── Activity Log ─────────────────────────────────────────────────────────────
+
+@router.get("/activity-log", response_model=ActivityLogPage)
+async def query_activity_log(
+    user: SchoolAdminUser,
+    db: AsyncSession = Depends(get_db),
+    school_id: str | None = Query(default=None, description="Super admins only; defaults to caller's school"),
+    user_id: str | None = Query(default=None),
+    action: str | None = Query(default=None, description="Exact match, e.g. 'auth.login'"),
+    date_from: datetime | None = Query(default=None),
+    date_to: datetime | None = Query(default=None),
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=50, ge=1, le=200),
+) -> ActivityLogPage:
+    """Paginated audit trail. School admins see their own school; super admins
+    may pass `school_id` to inspect any school (omit for all schools)."""
+    is_super = user.role.value if hasattr(user.role, "value") else str(user.role)
+    effective_school_id: UUID | None = user.school_id
+    if school_id:
+        if is_super != "super_admin":
+            raise HTTPException(status_code=403, detail="Only super admins can query other schools")
+        effective_school_id = UUID(school_id)
+    elif is_super == "super_admin":
+        effective_school_id = None  # super admin without explicit filter sees everything
+
+    filters = [ActivityLog.created_at >= date_from if date_from else None,
+               ActivityLog.created_at <= date_to if date_to else None,
+               ActivityLog.school_id == effective_school_id if effective_school_id else None,
+               ActivityLog.user_id == user_id if user_id else None,
+               ActivityLog.action == action if action else None]
+    filters = [f for f in filters if f is not None]
+
+    base = select(ActivityLog).where(*filters)
+    total = (
+        await db.execute(select(func.count()).select_from(ActivityLog).where(*filters))
+    ).scalar() or 0
+    rows = (
+        await db.execute(base.order_by(ActivityLog.created_at.desc()).offset(offset).limit(limit))
+    ).scalars().all()
+
+    return ActivityLogPage(
+        total=total,
+        offset=offset,
+        limit=limit,
+        items=[
+            ActivityLogOut(
+                id=a.id,
+                user_id=a.user_id,
+                school_id=a.school_id,
+                action=a.action,
+                details=a.details,
+                created_at=a.created_at.isoformat(),
+            )
+            for a in rows
+        ],
+    )
 
 
 # ── Roadmap ──────────────────────────────────────────────────────────────────

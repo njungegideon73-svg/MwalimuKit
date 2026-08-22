@@ -38,6 +38,7 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://mwalimu:${POSTGRES_PASSWORD:-changeme}@db:5432/mwalimukit
       REDIS_URL: redis://redis:6379/0
+      API_WORKERS: ${API_WORKERS:-2}
     ports:
       - "8000:8000"
     depends_on:
@@ -45,10 +46,16 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
     command: >
       sh -c "alembic upgrade head &&
              python -m app.scripts.seed_curriculum &&
-             uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2"
+             sh /app/start.sh"
 
   web:
     build:
@@ -62,6 +69,45 @@ services:
     depends_on:
       - api
 
+  # Nightly database backups (custom-format dumps + retention pruning).
+  # Start with: docker compose --profile backup up -d db-backup
+  db-backup:
+    image: postgres:16-alpine
+    profiles: ["backup"]
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGHOST: db
+      PGUSER: mwalimu
+      PGDATABASE: mwalimukit
+      PGPASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
+      RETENTION_DAYS: ${RETENTION_DAYS:-14}
+    volumes:
+      - db_backups:/backups
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        echo "[db-backup] running every $${BACKUP_INTERVAL_SECONDS}s, retaining $${RETENTION_DAYS} days"
+        while true; do
+          STAMP=$$(date -u +%Y%m%dT%H%M%SZ)
+          OUT=/backups/mwalimukit-$$STAMP.dump
+          if pg_dump -Fc -f "$$OUT" && [ "$$(wc -c < $$OUT)" -gt 1024 ]; then
+            gzip -f "$$OUT"
+            echo "[db-backup] wrote $${OUT}.gz"
+          else
+            echo "[db-backup] dump failed" >&2
+            rm -f "$$OUT"
+          fi
+          find /backups -name 'mwalimukit-*.dump.gz' -mtime +"$$RETENTION_DAYS" -delete
+          sleep "$${BACKUP_INTERVAL_SECONDS}"
+        done
+
 volumes:
   db_data:
   redis_data:
+  db_backups:

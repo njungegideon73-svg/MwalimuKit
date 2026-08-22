@@ -22,7 +22,7 @@ class LearningArea(UUIDPK, Timestamped, Base):
     code: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
     name: Mapped[str] = mapped_column(Text, nullable=False)
     level: Mapped[CurriculumLevel] = mapped_column(
-        Enum(CurriculumLevel, name="curriculum_level", native_enum=True), nullable=False
+        Enum(CurriculumLevel, name="curriculum_level", native_enum=False), nullable=False
     )
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 

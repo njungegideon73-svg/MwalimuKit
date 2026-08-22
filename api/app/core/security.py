@@ -46,12 +46,19 @@ def _create_token(
     return jwt.encode(payload, settings.secret_key, algorithm=JWT_ALGORITHM)
 
 
-def create_access_token(user_id: str, role: str | None = None, school_id: str | None = None) -> str:
+def create_access_token(
+    user_id: str,
+    role: str | None = None,
+    school_id: str | None = None,
+    token_version: int | None = None,
+) -> str:
     extra_claims = {}
     if role:
         extra_claims["role"] = role
     if school_id:
         extra_claims["school_id"] = school_id
+    if token_version is not None:
+        extra_claims["ver"] = token_version
     return _create_token(
         user_id,
         timedelta(minutes=settings.access_token_ttl_minutes),
@@ -60,11 +67,13 @@ def create_access_token(user_id: str, role: str | None = None, school_id: str | 
     )
 
 
-def create_refresh_token(user_id: str) -> str:
+def create_refresh_token(user_id: str, token_version: int | None = None) -> str:
+    extra_claims = {"ver": token_version} if token_version is not None else None
     return _create_token(
         user_id,
         timedelta(days=settings.refresh_token_ttl_days),
         "refresh",
+        extra_claims,
     )
 
 

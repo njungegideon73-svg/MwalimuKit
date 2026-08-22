@@ -27,10 +27,14 @@ class Settings(BaseSettings):
     jwt_issuer: str = Field(default="mwalimukit.api", alias="JWT_ISSUER")
     jwt_audience: str = Field(default="mwalimukit.web", alias="JWT_AUDIENCE")
     refresh_token_rotation: bool = Field(default=True, alias="REFRESH_TOKEN_ROTATION")
+    max_body_bytes: int = Field(default=1_048_576, alias="API_MAX_BODY_BYTES")
 
     ai_provider: str = Field(default="mock", alias="AI_PROVIDER")
     ai_api_key: str = Field(default="", alias="AI_API_KEY")
     ai_model: str = Field(default="gpt-4o-mini", alias="AI_MODEL")
+
+    sentry_dsn: str = Field(default="", alias="SENTRY_DSN")
+    cache_ttl_seconds: int = Field(default=300, alias="CACHE_TTL_SECONDS")
 
     feature_paywall_enabled: bool = Field(default=False, alias="FEATURE_PAYWALL_ENABLED")
     feature_ai_generation_enabled: bool = Field(default=True, alias="FEATURE_AI_GENERATION_ENABLED")
