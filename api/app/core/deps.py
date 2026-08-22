@@ -42,12 +42,19 @@ async def get_current_user(
     if user is None:
         raise credentials_exc
 
-    # Session invalidation: tokens issued before the current token_version
-    # (e.g. pre-password-change) are rejected. Missing `ver` claim is only
-    # accepted while the user is still at version 0.
-    if payload.get("ver", 0) != user.token_version:
+    # Session invalidation: reload user to get fresh token_version from database.
+    # This ensures that password changes or session revocations are recognized
+    # even if the user object was cached in the session.
+    refreshed_user = await db.get(User, user.id)
+    if refreshed_user is None:
         raise credentials_exc
-    return user
+
+    # Tokens issued before the current token_version (e.g. pre-password-change)
+    # are rejected. Missing `ver` claim is only accepted while the user is
+    # still at version 0.
+    if payload.get("ver", 0) != refreshed_user.token_version:
+        raise credentials_exc
+    return refreshed_user
 
 
 def require_role(*allowed_roles: UserRole):

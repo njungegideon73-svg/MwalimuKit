@@ -125,7 +125,9 @@ async def test_change_password(client: AsyncClient, auth_headers: dict):
     )
     assert resp.status_code == 200
     data = resp.json()
-    assert data["changed"] is True
+    # New tokens are returned after password change
+    assert "access_token" in data
+    assert "refresh_token" in data
 
 
 @pytest.mark.asyncio

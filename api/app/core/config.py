@@ -36,6 +36,12 @@ class Settings(BaseSettings):
     sentry_dsn: str = Field(default="", alias="SENTRY_DSN")
     cache_ttl_seconds: int = Field(default=300, alias="CACHE_TTL_SECONDS")
 
+    # Rate limiting settings (generous defaults for development/testing)
+    rate_limit_login_max: int = Field(default=100, alias="RATE_LIMIT_LOGIN_MAX")
+    rate_limit_login_window: int = Field(default=60, alias="RATE_LIMIT_LOGIN_WINDOW")
+    rate_limit_signup_max: int = Field(default=100, alias="RATE_LIMIT_SIGNUP_MAX")
+    rate_limit_signup_window: int = Field(default=60, alias="RATE_LIMIT_SIGNUP_WINDOW")
+
     feature_paywall_enabled: bool = Field(default=False, alias="FEATURE_PAYWALL_ENABLED")
     feature_ai_generation_enabled: bool = Field(default=True, alias="FEATURE_AI_GENERATION_ENABLED")
 

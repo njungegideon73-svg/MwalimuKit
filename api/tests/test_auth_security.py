@@ -121,12 +121,12 @@ class TestTokenVersionInvalidation:
         assert body["refresh_token"]
 
         # The pre-password-change access token no longer authenticates.
-        me = await client.get("/schools/me", headers=old_headers)
+        me = await client.get("/api/v1/auth/sessions", headers=old_headers)
         assert me.status_code in (401, 403)
 
         # New tokens work.
         new_headers = {"Authorization": f"Bearer {body['access_token']}"}
-        me = await client.get("/schools/me", headers=new_headers)
+        me = await client.get("/api/v1/auth/sessions", headers=new_headers)
         assert me.status_code == 200
 
         user = await db_session.get(UserModel, test_user.id)

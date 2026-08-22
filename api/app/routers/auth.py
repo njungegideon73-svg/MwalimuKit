@@ -12,6 +12,7 @@ from app.core.rate_limit import (
     LOCKOUT_MAX_FAILURES,
     clear_login_failures,
     is_locked_out,
+    is_locked_out_any_ip,
     rate_limit_login,
     rate_limit_password_change,
     rate_limit_password_reset,
@@ -60,6 +61,7 @@ router = APIRouter()
 
 @router.post("/signup", response_model=TokenPair)
 async def signup(
+    request: Request,
     payload: SignupRequest,
     db: AsyncSession = Depends(get_db),
     _rate: None = Depends(rate_limit_signup),
@@ -85,7 +87,7 @@ async def login(
     # Seed the email GUC so RLS on the users table permits the lookup.
     set_auth_email(payload.email)
 
-    if await is_locked_out(payload.email, ip):
+    if await is_locked_out_any_ip(payload.email):
         inc_counter("mwalimukit_login_failures_total", {"reason": "locked"})
         raise HTTPException(
             status_code=429,
@@ -133,6 +135,7 @@ async def login(
 
 @router.post("/refresh", response_model=TokenPair)
 async def refresh(
+    request: Request,
     payload: RefreshRequest,
     db: AsyncSession = Depends(get_db),
     _rate: None = Depends(rate_limit_refresh),
@@ -193,7 +196,7 @@ async def change_password(
     from app.core.logging import get_logger
 
     get_logger().info("security.password_changed", user_id=str(user.id))
-    return pair_for_user(user)
+    return await pair_for_user(user)
 
 
 @router.post("/change-school-code")

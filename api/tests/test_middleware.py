@@ -3,16 +3,48 @@ sanitized error responses."""
 from __future__ import annotations
 
 import pytest
+import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.db import get_db
 from app.main import app
+from app.models.base import Base
+from app.core.rate_limit import reset_rate_limits
 
 pytestmark = pytest.mark.asyncio
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def setup_db_middleware():
+    """Set up in-memory DB for middleware tests."""
+    from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:", future=True)
+    TestSessionLocal = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
+
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+    async with TestSessionLocal() as session:
+        async def _override_get_db():
+            yield session
+
+        app.dependency_overrides[get_db] = _override_get_db
+        yield
+        app.dependency_overrides.clear()
+
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+    reset_rate_limits()
 
 
 @pytest.fixture
 async def bare_client():
     """Client hitting the real app (no DB override) — for middleware tests."""
+    # Reset metrics before each test to ensure clean state
+    from app.core.metrics import reset_metrics
+    reset_metrics()
     transport = ASGITransport(app=app, raise_app_exceptions=False)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
         yield c

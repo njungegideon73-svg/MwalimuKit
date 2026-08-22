@@ -1,6 +1,7 @@
 """Auth business logic."""
 from __future__ import annotations
 
+import time
 from uuid import uuid4
 
 from jose import JWTError
@@ -8,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.rate_limit import _get_redis
+from app.core.rate_limit import _get_redis, _memory
 from app.core.sanitization import sanitize_dict
 from app.core.security import (
     create_access_token,
@@ -24,30 +25,46 @@ from app.schemas.auth import SignupRequest, TokenPair, UserOut
 
 
 async def _is_refresh_revoked(jti: str) -> bool:
-    """Check the Redis revocation list for a revoked refresh-token jti."""
+    """Check the revocation list for a revoked refresh-token jti.
+
+    Uses Redis when available, with an in-process fallback for dev/test.
+    """
     if not settings.refresh_token_rotation:
         return False
     redis = await _get_redis()
-    if redis is None:
+    if redis is not None:
+        try:
+            return await redis.exists(f"revoked_refresh:{jti}") == 1
+        except Exception:
+            pass
+    # In-process fallback
+    val = _memory.get(f"revoked_refresh:{jti}")
+    if val is None:
         return False
-    try:
-        return await redis.exists(f"revoked_refresh:{jti}") == 1
-    except Exception:
+    _, expires_at = val
+    if expires_at <= time.time():
+        _memory.pop(f"revoked_refresh:{jti}", None)
         return False
+    return True
 
 
 async def _revoke_refresh(jti: str) -> None:
-    """Add a refresh-token jti to the Redis revocation list with TTL."""
+    """Add a refresh-token jti to the revocation list with TTL.
+
+    Uses Redis when available, with an in-process fallback for dev/test.
+    """
     if not settings.refresh_token_rotation:
         return
     redis = await _get_redis()
-    if redis is None:
-        return
-    try:
-        ttl = settings.refresh_token_ttl_days * 24 * 60 * 60
-        await redis.setex(f"revoked_refresh:{jti}", ttl, "1")
-    except Exception:
-        pass
+    ttl = settings.refresh_token_ttl_days * 24 * 60 * 60
+    if redis is not None:
+        try:
+            await redis.setex(f"revoked_refresh:{jti}", ttl, "1")
+            return
+        except Exception:
+            pass
+    # In-process fallback
+    _memory[f"revoked_refresh:{jti}"] = (1, time.time() + ttl)
 
 
 async def signup(db: AsyncSession, payload: SignupRequest, user_agent: str | None = None) -> TokenPair:

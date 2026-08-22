@@ -155,7 +155,11 @@ def event_loop():
 @pytest_asyncio.fixture(autouse=True)
 async def setup_db():
     from app.core.rate_limit import reset_rate_limits
+    from app.core.metrics import reset_metrics
 
+    # Reset rate limits before each test to ensure clean state
+    reset_rate_limits()
+    reset_metrics()
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield
@@ -163,6 +167,7 @@ async def setup_db():
         await conn.run_sync(Base.metadata.drop_all)
     # Isolate in-process rate-limit / lockout state between tests.
     reset_rate_limits()
+    reset_metrics()
 
 
 @pytest_asyncio.fixture

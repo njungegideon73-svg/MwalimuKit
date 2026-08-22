@@ -86,10 +86,22 @@ def _escape(value: str) -> str:
 
 
 def normalize_path(request: Request) -> str:
-    """Route template for low-cardinality labels (e.g. /learners/{learner_id})."""
+    """Route template for low-cardinality labels (e.g. /api/v1/learners/{learner_id})."""
     route = request.scope.get("route")
     path_format = getattr(route, "path_format", None)
     if path_format:
+        # Find the prefix from the app's routers
+        app = request.scope.get("app")
+        if app:
+            for r in getattr(app, "routes", []):
+                # Check if this is an _IncludedRouter with a prefix
+                include_context = getattr(r, "include_context", None)
+                if include_context and hasattr(include_context, "prefix"):
+                    prefix = include_context.prefix
+                    # Check if the route is part of this router
+                    original_router = getattr(r, "original_router", None)
+                    if original_router and route in getattr(original_router, "routes", []):
+                        return f"{prefix}{path_format}"
         return path_format
     # Fallback before routing matched: mask obvious id segments.
     parts = request.scope.get("path", "").split("/")

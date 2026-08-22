@@ -98,8 +98,8 @@ def _throttle(scope: str, max_requests: int, window_seconds: int):
 
 
 # Named endpoint throttles ────────────────────────────────────────────────────
-rate_limit_login = _throttle("login", max_requests=5, window_seconds=60)
-rate_limit_signup = _throttle("signup", max_requests=5, window_seconds=60)
+rate_limit_login = _throttle("login", max_requests=settings.rate_limit_login_max, window_seconds=settings.rate_limit_login_window)
+rate_limit_signup = _throttle("signup", max_requests=settings.rate_limit_signup_max, window_seconds=settings.rate_limit_signup_window)
 rate_limit_refresh = _throttle("refresh", max_requests=30, window_seconds=60)
 rate_limit_generate = _throttle("generate", max_requests=10, window_seconds=60)
 rate_limit_password_change = _throttle("password", max_requests=10, window_seconds=60)
@@ -123,6 +123,25 @@ async def is_locked_out(email: str, ip: str) -> bool:
         except Exception:
             pass
     return _memory_get(f"locked:{key}") > 0
+
+
+async def is_locked_out_any_ip(email: str) -> bool:
+    """True when this email has been locked out from any IP."""
+    redis = await _get_redis()
+    if redis is not None:
+        try:
+            # Check for any lockout key matching this email
+            pattern = f"lock:{email.lower()}:*"
+            async for _ in redis.scan_iter(pattern):
+                return True
+        except Exception:
+            pass
+    # Check in-memory store
+    prefix = f"locked:lock:{email.lower()}:"
+    for key in _memory:
+        if key.startswith(prefix):
+            return True
+    return False
 
 
 async def register_login_failure(email: str, ip: str) -> int:
