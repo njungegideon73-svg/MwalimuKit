@@ -28,6 +28,8 @@ TENANT_TABLES = [
 
 
 def _enable_rls(table: str) -> None:
+    for p in ["select", "insert", "update", "delete"]:
+        op.execute(f"DROP POLICY IF EXISTS rls_{p}_{table} ON {table}")
     op.execute(f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY")
     op.execute(
         f"""

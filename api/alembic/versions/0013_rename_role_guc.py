@@ -42,7 +42,8 @@ def _drop_policies(table: str) -> None:
     if table == "users":
         policy_names.append("auth_user_by_email")
     for p in policy_names:
-        name = f"rls_{p}_{table}"
+        # The auth policy does not carry the table suffix.
+        name = "rls_auth_user_by_email" if p == "auth_user_by_email" else f"rls_{p}_{table}"
         op.execute(f"DROP POLICY IF EXISTS {name} ON {table}")
 
 
