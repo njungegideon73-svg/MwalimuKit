@@ -98,6 +98,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build API image
-        run: docker build -t mwalimukit-api:sha-${{ github.sha }} -f api/Dockerfile .
+        run: docker build -t mwalimukit-api:sha-${{ github.sha }} -f api/Dockerfile api
       - name: Build Web image
-        run: docker build -t mwalimukit-web:sha-${{ github.sha }} -f web/Dockerfile .
+        run: docker build -t mwalimukit-web:sha-${{ github.sha }} -f web/Dockerfile web
