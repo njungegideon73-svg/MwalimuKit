@@ -19,7 +19,7 @@ def _to_async_url(url: str) -> str:
 
 
 engine = create_async_engine(_to_async_url(settings.database_url), future=True, pool_pre_ping=True, connect_args={"statement_cache_size": 0})
-SessionLocal = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession, begin=False)
+SessionLocal = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 
 
 async def _apply_rls_gucs(session: AsyncSession) -> None:
