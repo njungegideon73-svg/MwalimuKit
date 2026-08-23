@@ -5,6 +5,8 @@ import { useAuthStore } from '@/lib/auth-store';
 import { useFeatureFlags } from '@/lib/feature-flags';
 import { apiFetch } from '@/lib/api';
 import { useSessionTimeout } from '@/hooks/useSessionTimeout';
+import { useRageClicks } from '@/hooks/useRageClicks';
+import Sentry from '@/lib/sentry';
 import { Layout } from '@/components/Layout';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { RoleBasedRoute } from '@/components/RoleBasedRoute';
@@ -183,6 +185,22 @@ export default function App() {
       window.location.href = '/login';
     },
   });
+
+  useRageClicks();
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (!detail) return;
+      Sentry.captureMessage('User rage-click detected', {
+        level: 'warning',
+        tags: { rage_click: 'true', element: detail.selector },
+        extra: { click_count: detail.count, element_selector: detail.selector },
+      });
+    };
+    window.addEventListener('rage-click', handler);
+    return () => window.removeEventListener('rage-click', handler);
+  }, []);
 
   useEffect(() => {
     hydrate();

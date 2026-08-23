@@ -7,7 +7,7 @@ from sqlalchemy import DateTime, ForeignKey, SmallInteger, Text, UniqueConstrain
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import Base, UUIDPK
+from app.models.base import UUIDPK, Base
 
 
 class Score(UUIDPK, Base):
@@ -16,11 +16,14 @@ class Score(UUIDPK, Base):
         UniqueConstraint("run_id", "learner_id", "item_id", name="uq_scores_run_learner_item"),
     )
 
-    run_id: Mapped["__import__('uuid').UUID"] = mapped_column(
+    run_id: Mapped[__import__('uuid').UUID] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("assessment_runs.id"), nullable=False
     )
-    learner_id: Mapped["__import__('uuid').UUID"] = mapped_column(
+    learner_id: Mapped[__import__('uuid').UUID] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("learners.id"), nullable=False
+    )
+    school_id: Mapped[__import__('uuid').UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("schools.id"), nullable=False
     )
     item_id: Mapped[str] = mapped_column(Text, nullable=False)
     level: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)

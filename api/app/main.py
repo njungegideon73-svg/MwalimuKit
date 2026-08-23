@@ -19,7 +19,7 @@ from app.core.sentry import init_sentry
 from app.core.tenant import TenantContextMiddleware
 from app.routers import (
     admin, assessments, auth, billing, classes, curriculum, feature_flags,
-    health, history, learners, news, reports, runs, scores, schools,
+    health, history, jobs, learners, news, reports, runs, scores, schools,
     super_admin, school_admin, term_exams,
 )
 
@@ -83,6 +83,7 @@ def create_app() -> FastAPI:
     app.include_router(term_exams.router, prefix="/api/v1/term-exams", tags=["term-exams"])
     app.include_router(super_admin.router, prefix="/api/v1/super-admin", tags=["super-admin"])
     app.include_router(school_admin.router, prefix="/api/v1/school-admin", tags=["school-admin"])
+    app.include_router(jobs.router, prefix="/api/v1/jobs", tags=["jobs"])
 
     return app
 

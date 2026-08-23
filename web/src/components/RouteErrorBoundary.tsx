@@ -1,4 +1,4 @@
-import { Component, type ErrorInfo, type ReactNode } from 'react';
+import { Component, type ReactNode } from 'react';
 import { ErrorBoundary } from './ErrorBoundary';
 
 interface Props {

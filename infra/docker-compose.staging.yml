@@ -1,0 +1,105 @@
+# ─────────────────────────────────────────────────────────────
+# MwalimuKit — Staging Docker Compose
+# ─────────────────────────────────────────────────────────────
+# A mirror of the production stack for running migrations
+# against production-like data before touching real customers.
+#
+# Usage:
+#   docker compose -f infra/docker-compose.staging.yml up -d
+#   docker compose -f infra/docker-compose.staging.yml exec api /app/scripts/migrate.sh status
+#   docker compose -f infra/docker-compose.staging.yml exec api /app/scripts/migrate.sh apply 0012
+#
+# The staging database is completely separate from production.
+# It should be refreshed from production backups before major
+# migration testing (see scripts/refresh-staging.sh).
+# ─────────────────────────────────────────────────────────────
+services:
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/templates/nginx.conf.template:ro
+      - ./nginx/server.conf:/etc/nginx/conf.d/default.conf:ro
+    environment:
+      DOMAIN: staging.mwalimukit.co.ke
+
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: .env.staging
+    environment:
+      DATABASE_URL: postgresql+psycopg://mwalimu:${POSTGRES_PASSWORD:-staging_pass}@db:5432/mwalimukit_staging
+      REDIS_URL: redis://redis:6379/0
+      API_ENV: staging
+      API_WORKERS: 2
+    ports:
+      - "8001:8000"
+    volumes:
+      - ./api:/app
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: >
+      sh -c "alembic upgrade head &&
+             python -m app.scripts.seed_curriculum &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: http://localhost:8001
+    restart: unless-stopped
+    ports:
+      - "5174:5173"
+    volumes:
+      - ./web:/app
+      - /app/node_modules
+    command: npm run dev -- --host
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: mwalimu
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-staging_pass}
+      POSTGRES_DB: mwalimukit_staging
+    ports:
+      - "5433:5432"
+    volumes:
+      - db_staging_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mwalimu -d mwalimukit_staging"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_staging_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  db_staging_data:
+  redis_staging_data:

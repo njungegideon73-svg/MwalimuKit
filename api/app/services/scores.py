@@ -18,18 +18,19 @@ async def upsert_scores(db: AsyncSession, school_id, batch: ScoreBatchIn) -> Sco
     conflicted_rows: list[dict] = []
 
     run_ids = {s.run_id for s in batch.scores}
+    valid_run_set = set()
+    run_school_map: dict = {}
     if run_ids:
         valid_runs = (
             await db.execute(
-                select(AssessmentRun.id).where(
+                select(AssessmentRun.id, AssessmentRun.school_id).where(
                     AssessmentRun.id.in_(run_ids),
                     AssessmentRun.school_id == school_id,
                 )
             )
-        ).scalars().all()
-        valid_run_set = set(valid_runs)
-    else:
-        valid_run_set = set()
+        ).all()
+        valid_run_set = {r.id for r in valid_runs}
+        run_school_map = {r.id: r.school_id for r in valid_runs}
 
     for s in batch.scores:
         if s.run_id not in valid_run_set:
@@ -61,16 +62,19 @@ async def upsert_scores(db: AsyncSession, school_id, batch: ScoreBatchIn) -> Sco
                 })
                 continue
 
+            score_school_id = run_school_map.get(s.run_id, school_id)
             if existing:
                 existing.level = s.level
                 existing.note = s.note
                 existing.updated_at = updated_at
+                existing.school_id = score_school_id
                 await db.merge(existing)
             else:
                 score = Score(
                     id=s.id,
                     run_id=s.run_id,
                     learner_id=s.learner_id,
+                    school_id=score_school_id,
                     item_id=s.item_id,
                     level=s.level,
                     note=s.note,

@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
+import Sentry from '@/lib/sentry';
 
 interface Props {
   children: ReactNode;
@@ -26,17 +27,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error('[ErrorBoundary] Unhandled UI error:', error, info.componentStack);
-    // Report to Sentry if available
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const Sentry = require('@sentry/react');
-      if (Sentry?.captureException) {
-        Sentry.captureException(error, { extra: { componentStack: info.componentStack } });
-      }
-    } catch {
-      // Sentry not installed — no-op
-    }
-    // Custom reporter callback
+    Sentry.captureException(error, { extra: { componentStack: info.componentStack } });
     this.props.onError?.(error, info);
   }
 

@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Download, Printer } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { apiFetch, getTokens } from '@/lib/api';
+import { apiFetch } from '@/lib/api';
+import { fetchSbaReportCard } from '@/features/reports/api';
 import toast from 'react-hot-toast';
 import type { SchoolClass, Learner } from '@mwalimukit/types';
 
@@ -71,23 +72,14 @@ export function SBAReportCardPage() {
   const handleDownloadPDF = async () => {
     if (!report) return;
     try {
-      const tokens = await getTokens();
-      const params = new URLSearchParams({
-        academic_year: academicYear,
-        format: 'pdf',
-        ...(schoolClosedDate && { school_closed_date: schoolClosedDate }),
-        ...(nextTermBeginsDate && { next_term_begins_date: nextTermBeginsDate }),
-        ...(classTeacherRemarks && { class_teacher_remarks: classTeacherRemarks }),
-        ...(principalRemarks && { principal_remarks: principalRemarks }),
+      const blob = await fetchSbaReportCard({
+        learnerId: report.learner_id,
+        academicYear,
+        schoolClosedDate: schoolClosedDate || undefined,
+        nextTermBeginsDate: nextTermBeginsDate || undefined,
+        classTeacherRemarks: classTeacherRemarks || undefined,
+        principalRemarks: principalRemarks || undefined,
       });
-      const resp = await fetch(
-        `/api/v1/reports/report-card/${report.learner_id}?${params.toString()}`,
-        {
-          headers: { Authorization: `Bearer ${tokens?.access}` },
-        }
-      );
-      if (!resp.ok) throw new Error('Failed');
-      const blob = await resp.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -98,7 +90,7 @@ export function SBAReportCardPage() {
       URL.revokeObjectURL(url);
       toast.success('PDF downloaded');
     } catch {
-      toast.error('Failed to download PDF. The endpoint may not exist yet.');
+      toast.error('Failed to download PDF');
     }
   };
 
@@ -106,23 +98,14 @@ export function SBAReportCardPage() {
     if (!report) return;
     setIsGeneratingPreview(true);
     try {
-      const tokens = await getTokens();
-      const params = new URLSearchParams({
-        academic_year: academicYear,
-        format: 'pdf',
-        ...(schoolClosedDate && { school_closed_date: schoolClosedDate }),
-        ...(nextTermBeginsDate && { next_term_begins_date: nextTermBeginsDate }),
-        ...(classTeacherRemarks && { class_teacher_remarks: classTeacherRemarks }),
-        ...(principalRemarks && { principal_remarks: principalRemarks }),
+      const blob = await fetchSbaReportCard({
+        learnerId: report.learner_id,
+        academicYear,
+        schoolClosedDate: schoolClosedDate || undefined,
+        nextTermBeginsDate: nextTermBeginsDate || undefined,
+        classTeacherRemarks: classTeacherRemarks || undefined,
+        principalRemarks: principalRemarks || undefined,
       });
-      const resp = await fetch(
-        `/api/v1/reports/report-card/${report.learner_id}?${params.toString()}`,
-        {
-          headers: { Authorization: `Bearer ${tokens?.access}` },
-        }
-      );
-      if (!resp.ok) throw new Error('Failed');
-      const blob = await resp.blob();
       const url = URL.createObjectURL(blob);
       setPreviewUrl(url);
     } catch {

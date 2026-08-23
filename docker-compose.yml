@@ -39,6 +39,7 @@ services:
       DATABASE_URL: postgresql+psycopg://mwalimu:${POSTGRES_PASSWORD:-changeme}@db:5432/mwalimukit
       REDIS_URL: redis://redis:6379/0
       API_WORKERS: ${API_WORKERS:-2}
+      EXPORT_STORAGE_PATH: /tmp/mwalimukit-exports
     ports:
       - "8000:8000"
     depends_on:
@@ -56,6 +57,25 @@ services:
       sh -c "alembic upgrade head &&
              python -m app.scripts.seed_curriculum &&
              sh /app/start.sh"
+
+  worker:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://mwalimu:${POSTGRES_PASSWORD:-changeme}@db:5432/mwalimukit
+      REDIS_URL: redis://redis:6379/0
+      EXPORT_STORAGE_PATH: /tmp/mwalimukit-exports
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: >
+      sh -c "alembic upgrade head &&
+             sh /app/start-worker.sh"
 
   web:
     build:

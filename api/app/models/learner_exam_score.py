@@ -8,7 +8,7 @@ from sqlalchemy import DateTime, ForeignKey, Integer, Text, UniqueConstraint, fu
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import Base, UUIDPK
+from app.models.base import UUIDPK, Base
 
 
 class LearnerExamScore(UUIDPK, Base):
@@ -22,6 +22,9 @@ class LearnerExamScore(UUIDPK, Base):
     )
     learner_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("learners.id"), nullable=False
+    )
+    school_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("schools.id"), nullable=False
     )
     marks: Mapped[int] = mapped_column(Integer, nullable=False)  # 0 to max_marks
     grade: Mapped[str | None] = mapped_column(Text, nullable=True)  # optional letter grade

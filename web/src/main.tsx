@@ -5,10 +5,13 @@ import { Toaster } from 'react-hot-toast';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from '@/lib/query-client';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { initSentry } from '@/lib/sentry';
 import App from './app/App';
 import './styles/globals.css';
 
 async function bootstrap() {
+  initSentry();
+
   // Capacitor-specific: hide splash screen when app is ready
   try {
     const { SplashScreen } = await import('@capacitor/splash-screen');

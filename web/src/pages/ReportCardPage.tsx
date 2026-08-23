@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Download, Eye, FileText, AlertCircle } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { apiFetch, getTokens } from '@/lib/api';
+import { apiFetch } from '@/lib/api';
+import { fetchLearnerReportCard, fetchClassSummaryCsv } from '@/features/reports/api';
 import toast from 'react-hot-toast';
 
 interface LearnerInfo {
@@ -10,32 +11,6 @@ interface LearnerInfo {
   full_name: string;
   class_name: string;
   class_id: string;
-}
-
-function getAuthHeaders(): Record<string, string> {
-  const { access } = getTokens();
-  if (!access) return {};
-  return { Authorization: `Bearer ${access}` };
-}
-
-async function fetchBlob(url: string): Promise<Blob> {
-  const res = await fetch(url, { headers: getAuthHeaders() });
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(text || `Request failed (${res.status})`);
-  }
-  return res.blob();
-}
-
-function triggerDownload(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
 }
 
 export function ReportCardPage() {
@@ -55,54 +30,20 @@ export function ReportCardPage() {
     enabled: !!learnerId,
   });
 
-  const API_BASE = '/api/v1';
-
-  const pdfUrl = learnerId && runId
-    ? `${API_BASE}/reports/learner/${learnerId}/report-card?runId=${runId}`
-    : null;
-
-  const csvUrl = learner?.class_id && runId
-    ? `${API_BASE}/reports/class/${learner.class_id}/summary-csv?runId=${runId}`
-    : null;
-
-  // Load preview when available
-  useEffect(() => {
-    if (!pdfUrl) {
-      setPreviewUrl(null);
-      return;
-    }
-    let cancelled = false;
-    fetchBlob(pdfUrl)
-      .then((blob) => {
-        if (cancelled) return;
-        const url = URL.createObjectURL(blob);
-        setPreviewUrl(url);
-        setFetchError(null);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        setFetchError(err.message || 'Failed to load report card');
-        setPreviewUrl(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [pdfUrl]);
-
-  // Cleanup preview URL on unmount
-  useEffect(() => {
-    return () => {
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
-    };
-  }, [previewUrl]);
-
   const handleDownloadPdf = async () => {
-    if (!pdfUrl) return;
+    if (!learnerId || !runId) return;
     setDownloading(true);
     try {
-      const blob = await fetchBlob(pdfUrl);
+      const blob = await fetchLearnerReportCard(runId, learnerId);
       const filename = `report_card_${learner?.full_name?.replace(/\s+/g, '_') || 'learner'}.pdf`;
-      triggerDownload(blob, filename);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
       toast.success('Report card downloaded');
     } catch (err: any) {
       toast.error(err.message || 'Failed to download report card');
@@ -112,12 +53,20 @@ export function ReportCardPage() {
   };
 
   const handleDownloadCsv = async () => {
-    if (!csvUrl) return;
+    if (!learner?.class_id || !runId) return;
     setCsvDownloading(true);
     try {
-      const blob = await fetchBlob(csvUrl);
-      const filename = `class_summary_${learner?.class_name?.replace(/\s+/g, '_') || 'class'}.csv`;
-      triggerDownload(blob, filename);
+      const text = await fetchClassSummaryCsv(learner.class_id, runId);
+      const blob = new Blob([text], { type: 'text/csv' });
+      const filename = `class_summary_${learner.class_name.replace(/\s+/g, '_') || 'class'}.csv`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
       toast.success('Class summary downloaded');
     } catch (err: any) {
       toast.error(err.message || 'Failed to download class summary');
@@ -125,6 +74,33 @@ export function ReportCardPage() {
       setCsvDownloading(false);
     }
   };
+
+  const handlePreview = async () => {
+    if (!learnerId || !runId) return;
+    setFetchError(null);
+    try {
+      const blob = await fetchLearnerReportCard(runId, learnerId);
+      const url = URL.createObjectURL(blob);
+      setPreviewUrl(url);
+    } catch (err: any) {
+      setFetchError(err.message || 'Failed to load report card');
+      setPreviewUrl(null);
+    }
+  };
+
+  // Auto-preview when learner and run are available
+  useEffect(() => {
+    if (learnerId && runId && !fetchError) {
+      handlePreview();
+    }
+  }, [learnerId, runId]);
+
+  // Cleanup preview URL on unmount
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
 
   if (isLoading) {
     return (
@@ -157,12 +133,8 @@ export function ReportCardPage() {
 
       {/* Action buttons */}
       <div className="card flex flex-wrap gap-3">
-        {pdfUrl ? (
-          <button
-            onClick={handleDownloadPdf}
-            disabled={downloading || !!fetchError}
-            className="btn-primary"
-          >
+        {learnerId && runId ? (
+          <button onClick={handleDownloadPdf} disabled={downloading} className="btn-primary">
             <Download className="h-4 w-4" /> {downloading ? 'Downloading...' : 'Download PDF'}
           </button>
         ) : (
@@ -171,12 +143,8 @@ export function ReportCardPage() {
           </button>
         )}
 
-        {csvUrl ? (
-          <button
-            onClick={handleDownloadCsv}
-            disabled={csvDownloading}
-            className="btn-secondary"
-          >
+        {learner?.class_id && runId ? (
+          <button onClick={handleDownloadCsv} disabled={csvDownloading} className="btn-secondary">
             <Download className="h-4 w-4" /> {csvDownloading ? 'Downloading...' : 'Download Class CSV'}
           </button>
         ) : (
@@ -220,7 +188,7 @@ export function ReportCardPage() {
       )}
 
       {/* Loading preview */}
-      {pdfUrl && !previewUrl && !fetchError && (
+      {learnerId && runId && !previewUrl && !fetchError && (
         <div className="card">
           <div className="flex items-center gap-2 mb-3">
             <FileText className="h-4 w-4 text-gray-400 animate-pulse" />

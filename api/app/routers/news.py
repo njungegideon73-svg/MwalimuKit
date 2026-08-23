@@ -10,8 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.db import get_db
 from app.core.deps import CurrentUser, SuperAdminUser
 from app.models.news_item import NewsItem
+from app.models.user import UserRole
 from app.schemas.news import NewsItemIn, NewsItemOut
-
 
 router = APIRouter()
 
@@ -21,13 +21,16 @@ async def list_news(
     user: CurrentUser,
     db: AsyncSession = Depends(get_db),
 ) -> list[NewsItemOut]:
-    rows = (
-        await db.execute(
+    user_role = user.role if hasattr(user.role, "value") else str(user.role)
+    if user_role in (UserRole.super_admin.value,):
+        stmt = select(NewsItem).where(NewsItem.is_active.is_(True)).order_by(NewsItem.created_at.desc())
+    else:
+        stmt = (
             select(NewsItem)
-            .where(NewsItem.is_active.is_(True))
+            .where(NewsItem.is_active.is_(True), NewsItem.school_id == user.school_id)
             .order_by(NewsItem.created_at.desc())
         )
-    ).scalars().all()
+    rows = (await db.execute(stmt)).scalars().all()
     return [
         NewsItemOut(
             id=str(n.id),
@@ -54,6 +57,7 @@ async def create_news(
         content=payload.content,
         category=payload.category,
         created_by=user.id,
+        school_id=user.school_id,
     )
     db.add(n)
     await db.commit()

@@ -3,6 +3,7 @@ import type { User } from '@mwalimukit/types';
 import { apiFetch, saveTokens, clearTokens, getTokens, logoutApi } from '@/lib/api';
 import { db } from '@/lib/db';
 import { invalidateCurriculumCache } from '@/lib/curriculum';
+import { setSentryUser } from '@/lib/sentry';
 
 interface AuthState {
   user: User | null;
@@ -33,6 +34,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     );
     saveTokens(res.access_token, res.refresh_token);
     set({ user: res.user, isAuthenticated: true });
+    setSentryUser(res.user);
   },
 
   signup: async (data) => {
@@ -42,6 +44,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     );
     saveTokens(res.access_token, res.refresh_token);
     set({ user: res.user, isAuthenticated: true });
+    setSentryUser(res.user);
   },
 
   logout: async () => {
@@ -50,6 +53,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     invalidateCurriculumCache();
     await db.delete();
     set({ user: null, isAuthenticated: false });
+    setSentryUser(null);
   },
 
   hydrate: async () => {
@@ -62,7 +66,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const user = await apiFetch<{ id: string; school_id: string; email: string; full_name: string; role: string }>(
         '/schools/me',
       );
-      set({ user: user as User, isAuthenticated: true, isLoading: false });
+      const typedUser = user as User;
+      set({ user: typedUser, isAuthenticated: true, isLoading: false });
+      setSentryUser(typedUser);
     } catch {
       clearTokens();
       set({ isLoading: false });

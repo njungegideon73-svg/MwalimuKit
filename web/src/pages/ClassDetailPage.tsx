@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Plus, Upload, Play, Pencil, Trash2, X, Check, Download } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api';
+import { fetchClassSummaryCsv } from '@/features/reports/api';
 import toast from 'react-hot-toast';
 import type { SchoolClass, Learner, Assessment } from '@mwalimukit/types';
 
@@ -28,6 +29,7 @@ export function ClassDetailPage() {
   const [editAdmNo, setEditAdmNo] = useState('');
 
   const [selectedRunId, setSelectedRunId] = useState<string>('');
+  const [csvDownloading, setCsvDownloading] = useState(false);
 
   const { data: cls, isLoading: loadingClass } = useQuery<SchoolClass>({
     queryKey: ['class', id],
@@ -274,14 +276,36 @@ export function ClassDetailPage() {
 
             {selectedRunId && (
               <div className="space-y-3">
-                <a
-                  href={`/api/v1/reports/class/${id}/summary-csv?runId=${selectedRunId}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn-secondary text-sm"
-                >
-                  <Download className="h-4 w-4" /> Download Class Summary CSV
-                </a>
+                {id && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!id) return;
+                      setCsvDownloading(true);
+                      try {
+                        const text = await fetchClassSummaryCsv(id, selectedRunId);
+                        const blob = new Blob([text], { type: 'text/csv' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `class_summary_${cls?.name?.replace(/\s+/g, '_') || 'class'}_${selectedRunId}.csv`;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                        toast.success('CSV downloaded');
+                      } catch (err: any) {
+                        toast.error(err.message || 'Failed to download CSV');
+                      } finally {
+                        setCsvDownloading(false);
+                      }
+                    }}
+                    disabled={csvDownloading}
+                    className="btn-secondary text-sm"
+                  >
+                    <Download className="h-4 w-4" /> {csvDownloading ? 'Generating...' : 'Download Class Summary CSV'}
+                  </button>
+                )}
 
                 <div className="divide-y divide-gray-100">
                   {learners.map((l) => (

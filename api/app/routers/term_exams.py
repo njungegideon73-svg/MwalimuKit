@@ -1,13 +1,10 @@
 """Term exams – SBA management, marks entry, report cards, analytics."""
 from __future__ import annotations
 
-import csv
-import io
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import StreamingResponse
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_db
@@ -15,14 +12,12 @@ from app.core.deps import CurrentUser
 from app.models.curriculum import LearningArea
 from app.models.learner import Learner
 from app.models.learner_exam_score import LearnerExamScore
-from app.models.school import School
 from app.models.school_class import SchoolClass
 from app.models.term_exam import TermExam
 from app.models.user import UserRole
 from app.schemas.term_exam import (
     ClassAnalytics,
     LearnerReportCard,
-    LearnerScoreIn,
     LearnerScoreOut,
     MarksEntryPayload,
     SubjectReport,
@@ -307,6 +302,7 @@ async def upsert_exam_scores(
                 id=uuid4(),
                 term_exam_id=exam_id,
                 learner_id=UUID(entry.learner_id),
+                school_id=te.school_id,
                 marks=entry.marks,
                 grade=grade,
                 comment=entry.comment,
@@ -564,81 +560,7 @@ async def class_analytics(
 
 # ---------------------------------------------------------------------------
 # 5. CSV Export
+# Moved to app.routers.jobs for async processing.
+# Use POST /api/v1/jobs/term-exams/export/class/{class_id}/csv
+# Then GET /api/v1/jobs/{job_id}/download
 # ---------------------------------------------------------------------------
-
-@router.get("/export/class/{class_id}/csv")
-async def export_class_sba_csv(
-    class_id: UUID,
-    user: CurrentUser,
-    db: AsyncSession = Depends(get_db),
-    academic_year: str = Query(...),
-):
-    await _resolve_class(db, user, class_id)
-
-    cls = (await db.execute(
-        select(SchoolClass).where(SchoolClass.id == class_id)
-    )).scalar_one_or_none()
-
-    learners = (await db.execute(
-        select(Learner).where(
-            Learner.class_id == class_id,
-            Learner.school_id == user.school_id,
-            Learner.deleted_at.is_(None),
-        ).order_by(Learner.full_name)
-    )).scalars().all()
-
-    exams = (await db.execute(
-        select(TermExam).where(
-            TermExam.class_id == class_id,
-            TermExam.academic_year == academic_year,
-            TermExam.school_id == user.school_id,
-        ).order_by(TermExam.term, TermExam.exam_type)
-    )).scalars().all()
-
-    exam_ids = [e.id for e in exams]
-    all_scores = (await db.execute(
-        select(LearnerExamScore).where(LearnerExamScore.term_exam_id.in_(exam_ids))
-    )).scalars().all()
-    score_map: dict[tuple[str, str], int] = {}
-    for s in all_scores:
-        score_map[(str(s.term_exam_id), str(s.learner_id))] = s.marks
-
-    output = io.StringIO()
-    writer = csv.writer(output)
-
-    # Header
-    header = ["Learner Name", "Admission No"]
-    for exam in exams:
-        la = (await db.execute(
-            select(LearningArea).where(LearningArea.id == exam.learning_area_id)
-        )).scalar_one_or_none()
-        label = f"{la.name if la else '?'} T{exam.term} {EXAM_TYPE_LABELS.get(exam.exam_type, exam.exam_type)}"
-        header.append(label)
-    header.append("Overall Average %")
-    writer.writerow(header)
-
-    # Rows
-    for learner in learners:
-        row = [learner.full_name, learner.admission_no or ""]
-        total_pct = 0
-        count = 0
-        for exam in exams:
-            marks = score_map.get((str(exam.id), str(learner.id)))
-            if marks is not None:
-                pct = round((marks / exam.max_marks) * 100, 1)
-                row.append(f"{marks} ({pct}%)")
-                total_pct += pct
-                count += 1
-            else:
-                row.append("-")
-        avg = round(total_pct / count, 1) if count > 0 else 0
-        row.append(f"{avg}%")
-        writer.writerow(row)
-
-    output.seek(0)
-    filename = f"sba_report_{cls.name.replace(' ', '_')}_{academic_year}.csv" if cls else f"sba_report_{academic_year}.csv"
-    return StreamingResponse(
-        iter([output.getvalue()]),
-        media_type="text/csv",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
-    )

@@ -218,3 +218,27 @@ export interface PromptHistoryEntry {
   feedback: string | null;
   created_at: string;
 }
+
+// ---------- Background Jobs ----------
+
+export type JobType =
+  | 'assessment_pdf'
+  | 'assessment_docx'
+  | 'report_card_pdf'
+  | 'sba_report_card_pdf'
+  | 'class_summary_csv'
+  | 'term_exam_class_csv';
+
+export type JobStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
+
+export interface ExportJob {
+  id: ID;
+  type: JobType;
+  status: JobStatus;
+  payload: Record<string, unknown>;
+  result: { filename: string; file_path: string; size_bytes: number; content_type: string } | null;
+  error: string | null;
+  idempotency_key: string | null;
+  created_at: string;
+  updated_at: string;
+}

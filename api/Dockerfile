@@ -20,7 +20,7 @@ RUN pip install --no-cache-dir \
     python-jose passlib[argon2] python-multipart httpx \
     openai anthropic structlog email-validator \
     reportlab stripe python-docx python-dotenv argon2-cffi \
-    sentry-sdk
+    sentry-sdk dramatiq
 
 # ── Runtime stage ───────────────────────────
 FROM python:3.12-slim
