@@ -49,7 +49,7 @@ async def _get_redis() -> Redis | None:
         return None
     if _redis is None:
         try:
-            _redis = Redis.from_url(settings.redis_url, decode_responses=True, socket_connect_timeout=1)
+            _redis = Redis.from_url(settings.redis_url, decode_responses=True, socket_connect_timeout=5)
             await _redis.ping()
         except Exception:
             _redis_failed = True

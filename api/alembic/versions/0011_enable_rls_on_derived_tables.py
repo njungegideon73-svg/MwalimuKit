@@ -6,7 +6,7 @@ retrospectively fitted with a ``school_id`` column in 0010:
   - ``scores``
   - ``learner_exam_scores``
 
-Policies use the same GUCs (``app.current_school_id``, ``app.current_role``)
+Policies use the same GUCs (``app.current_school_id``, ``app.role``)
 and super-admin bypass pattern as the existing RLS setup.
 
 Revision ID: 0011
@@ -35,7 +35,7 @@ def _enable_rls(table: str) -> None:
         FOR SELECT
         USING (
             school_id = current_setting('app.current_school_id', true)::uuid
-            OR current_setting('app.current_role', true) = 'super_admin'
+            OR current_setting('app.role', true) = 'super_admin'
         )
         """
     )
@@ -45,7 +45,7 @@ def _enable_rls(table: str) -> None:
         FOR INSERT
         WITH CHECK (
             school_id = current_setting('app.current_school_id', true)::uuid
-            OR current_setting('app.current_role', true) = 'super_admin'
+            OR current_setting('app.role', true) = 'super_admin'
         )
         """
     )
@@ -55,11 +55,11 @@ def _enable_rls(table: str) -> None:
         FOR UPDATE
         USING (
             school_id = current_setting('app.current_school_id', true)::uuid
-            OR current_setting('app.current_role', true) = 'super_admin'
+            OR current_setting('app.role', true) = 'super_admin'
         )
         WITH CHECK (
             school_id = current_setting('app.current_school_id', true)::uuid
-            OR current_setting('app.current_role', true) = 'super_admin'
+            OR current_setting('app.role', true) = 'super_admin'
         )
         """
     )
@@ -69,7 +69,7 @@ def _enable_rls(table: str) -> None:
         FOR DELETE
         USING (
             school_id = current_setting('app.current_school_id', true)::uuid
-            OR current_setting('app.current_role', true) = 'super_admin'
+            OR current_setting('app.role', true) = 'super_admin'
         )
         """
     )

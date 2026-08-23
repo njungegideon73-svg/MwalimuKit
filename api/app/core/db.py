@@ -37,12 +37,12 @@ async def _apply_rls_gucs(session: AsyncSession) -> None:
             .bindparams(val=str(tenant.school_id)),
         )
         await session.execute(
-            text("SELECT set_config('app.current_role', :val, false)")
+            text("SELECT set_config('app.role', :val, false)")
             .bindparams(val=tenant.role),
         )
     else:
         await session.execute(text("SELECT set_config('app.current_school_id', '', false)"))
-        await session.execute(text("SELECT set_config('app.current_role', 'app', false)"))
+        await session.execute(text("SELECT set_config('app.role', 'app', false)"))
 
     email = get_auth_email()
     if email:
@@ -55,9 +55,9 @@ async def _apply_rls_gucs(session: AsyncSession) -> None:
 
 
 async def _reset_rls_gucs(session: AsyncSession) -> None:
-    await session.execute(text("RESET app.current_school_id"))
-    await session.execute(text("RESET app.current_role"))
-    await session.execute(text("RESET app.current_email"))
+    await session.execute(text("SELECT set_config('app.current_school_id', '', false)"))
+    await session.execute(text("SELECT set_config('app.role', '', false)"))
+    await session.execute(text("SELECT set_config('app.current_email', '', false)"))
 
 
 async def get_db() -> AsyncIterator[AsyncSession]:

@@ -1,7 +1,7 @@
 """Tenant / role context propagation for PostgreSQL RLS.
 
 A context-variable based system that lets the database layer set per-connection
-GUCs (``app.current_school_id``, ``app.current_role``, ``app.current_email``)
+GUCs (``app.current_school_id``, ``app.role``, ``app.current_email``)
 that the RLS policies in migration ``0009`` depend on.
 
 Flow:

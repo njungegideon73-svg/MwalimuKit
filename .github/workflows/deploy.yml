@@ -18,6 +18,7 @@ on:
 
 env:
   FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+  PATH: $HOME/.fly/bin:${{ env.PATH }}
 
 jobs:
   deploy:
@@ -42,7 +43,7 @@ jobs:
           cache: npm
 
       - name: Install Flyctl
-        uses: superfly/flyctl-actions/setup-flyctl@main
+        run: curl -L https://fly.io/install.sh | sh
 
       - name: Build web assets
         run: |

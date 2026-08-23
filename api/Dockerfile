@@ -30,7 +30,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONPATH=/app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        libpq5 curl \
+        libpq5 curl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 RUN groupadd -r app && useradd -r -g app -d /app -s /sbin/nologin app

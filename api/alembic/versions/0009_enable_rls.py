@@ -13,7 +13,7 @@ Strategy:
   login/signup endpoints can look up users before a full tenant context
   is established (the middleware sets ``app.current_email`` for auth
   routes).
-- Super-admins bypass tenant scope via ``app.current_role = 'super_admin'``.
+- Super-admins bypass tenant scope via ``app.role = 'super_admin'``.
 
 Revision ID: 0009_rls
 Revises: 0008
@@ -50,7 +50,7 @@ _EXTRA_POLICIES = {
         FOR SELECT
         USING (
             email = current_setting('app.current_email', true)
-            OR current_setting('app.current_role', true) = 'super_admin'
+            OR current_setting('app.role', true) = 'super_admin'
         )
         """,
 }
@@ -64,7 +64,7 @@ def _enable_rls(table: str) -> None:
         FOR SELECT
         USING (
             school_id = current_setting('app.current_school_id', true)::uuid
-            OR current_setting('app.current_role', true) = 'super_admin'
+            OR current_setting('app.role', true) = 'super_admin'
         )
         """
     )
@@ -74,7 +74,7 @@ def _enable_rls(table: str) -> None:
         FOR INSERT
         WITH CHECK (
             school_id = current_setting('app.current_school_id', true)::uuid
-            OR current_setting('app.current_role', true) = 'super_admin'
+            OR current_setting('app.role', true) = 'super_admin'
         )
         """
     )
@@ -84,11 +84,11 @@ def _enable_rls(table: str) -> None:
         FOR UPDATE
         USING (
             school_id = current_setting('app.current_school_id', true)::uuid
-            OR current_setting('app.current_role', true) = 'super_admin'
+            OR current_setting('app.role', true) = 'super_admin'
         )
         WITH CHECK (
             school_id = current_setting('app.current_school_id', true)::uuid
-            OR current_setting('app.current_role', true) = 'super_admin'
+            OR current_setting('app.role', true) = 'super_admin'
         )
         """
     )
@@ -98,7 +98,7 @@ def _enable_rls(table: str) -> None:
         FOR DELETE
         USING (
             school_id = current_setting('app.current_school_id', true)::uuid
-            OR current_setting('app.current_role', true) = 'super_admin'
+            OR current_setting('app.role', true) = 'super_admin'
         )
         """
     )
@@ -118,7 +118,7 @@ def _disable_rls(table: str) -> None:
 def upgrade() -> None:
     # Initialise GUCs with defaults so policies never error on NULL casts.
     op.execute("SELECT set_config('app.current_school_id', '', false)")
-    op.execute("SELECT set_config('app.current_role', 'app', false)")
+    op.execute("SELECT set_config('app.role', 'app', false)")
     op.execute("SELECT set_config('app.current_email', '', false)")
     for table in TENANT_TABLES:
         _enable_rls(table)
