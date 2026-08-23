@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install just the dependencies (not the app itself)
-COPY api/pyproject.toml ./
+COPY pyproject.toml ./
 RUN pip install --no-cache-dir \
     fastapi uvicorn pydantic pydantic-settings gunicorn \
     sqlalchemy asyncpg psycopg[binary] alembic redis \
@@ -39,7 +39,7 @@ WORKDIR /app
 
 COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
-COPY api/ .
+COPY . .
 
 RUN chown -R app:app /app
 USER app

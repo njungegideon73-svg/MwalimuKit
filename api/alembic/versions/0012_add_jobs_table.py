@@ -9,7 +9,18 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.execute("""
+    conn = op.get_bind()
+
+    # Idempotent: skip if jobs table already exists
+    result = conn.execute(sa.text("SELECT to_regclass('public.jobs')"))
+    if result.scalar() is not None:
+        return
+
+    # Clean up orphaned enums from a previous failed migration run
+    conn.execute(sa.text("DROP TYPE IF EXISTS job_status"))
+    conn.execute(sa.text("DROP TYPE IF EXISTS job_type"))
+
+    conn.execute(sa.text("""
         CREATE TYPE job_type AS ENUM (
             'assessment_pdf',
             'assessment_docx',
@@ -18,8 +29,8 @@ def upgrade() -> None:
             'class_summary_csv',
             'term_exam_class_csv'
         )
-    """)
-    op.execute("""
+    """))
+    conn.execute(sa.text("""
         CREATE TYPE job_status AS ENUM (
             'pending',
             'processing',
@@ -27,36 +38,44 @@ def upgrade() -> None:
             'failed',
             'cancelled'
         )
-    """)
-    op.create_table(
-        "jobs",
-        sa.Column("id", sa.dialects.postgresql.UUID(as_uuid=True), primary_key=True, server_default=sa.text("gen_random_uuid()")),
-        sa.Column("created_at", sa.TIMESTAMP(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column("updated_at", sa.TIMESTAMP(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column("user_id", sa.dialects.postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("school_id", sa.dialects.postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("type", sa.Enum("assessment_pdf", "assessment_docx", "report_card_pdf", "sba_report_card_pdf", "class_summary_csv", "term_exam_class_csv", name="job_type"), nullable=False),
-        sa.Column("status", sa.Enum("pending", "processing", "completed", "failed", "cancelled", name="job_status"), nullable=False, server_default="pending"),
-        sa.Column("payload", sa.dialects.postgresql.JSONB(), nullable=False, server_default=sa.text("'{}'::jsonb")),
-        sa.Column("result", sa.dialects.postgresql.JSONB(), nullable=True),
-        sa.Column("file_data", sa.LargeBinary(), nullable=True),
-        sa.Column("error", sa.Text(), nullable=True),
-        sa.Column("idempotency_key", sa.Text(), nullable=True),
-        sa.Column("expires_at", sa.TIMESTAMP(timezone=True), nullable=True),
-        sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["school_id"], ["schools.id"], ondelete="CASCADE"),
-    )
-    op.create_index("ix_jobs_school_id", "jobs", ["school_id"])
-    op.create_index("ix_jobs_user_id", "jobs", ["user_id"])
-    op.create_index("ix_jobs_status", "jobs", ["status"])
-    op.create_unique_constraint("uq_jobs_idempotency_key", "jobs", ["idempotency_key"], postgresql_nulls_not_distinct=True)
+    """))
+
+    conn.execute(sa.text("""
+        CREATE TABLE jobs (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+            user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            school_id UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+            type job_type NOT NULL,
+            status job_status NOT NULL DEFAULT 'pending',
+            payload JSONB NOT NULL DEFAULT '{}',
+            result JSONB,
+            file_data BYTEA,
+            error TEXT,
+            idempotency_key TEXT,
+            expires_at TIMESTAMPTZ
+        )
+    """))
+
+    conn.execute(sa.text("CREATE INDEX ix_jobs_school_id ON jobs (school_id)"))
+    conn.execute(sa.text("CREATE INDEX ix_jobs_user_id ON jobs (user_id)"))
+    conn.execute(sa.text("CREATE INDEX ix_jobs_status ON jobs (status)"))
+    conn.execute(sa.text("""
+        CREATE UNIQUE INDEX uq_jobs_idempotency_key ON jobs (idempotency_key)
+    """))
 
 
 def downgrade() -> None:
-    op.drop_constraint("uq_jobs_idempotency_key", "jobs", type_="unique")
-    op.drop_index("ix_jobs_status", table_name="jobs")
-    op.drop_index("ix_jobs_user_id", table_name="jobs")
-    op.drop_index("ix_jobs_school_id", table_name="jobs")
-    op.drop_table("jobs")
-    op.execute("DROP TYPE job_status")
-    op.execute("DROP TYPE job_type")
+    conn = op.get_bind()
+    result = conn.execute(sa.text("SELECT to_regclass('public.jobs')"))
+    if result.scalar() is None:
+        return
+
+    conn.execute(sa.text("DROP INDEX IF EXISTS uq_jobs_idempotency_key"))
+    conn.execute(sa.text("DROP INDEX IF EXISTS ix_jobs_status"))
+    conn.execute(sa.text("DROP INDEX IF EXISTS ix_jobs_user_id"))
+    conn.execute(sa.text("DROP INDEX IF EXISTS ix_jobs_school_id"))
+    conn.execute(sa.text("DROP TABLE IF EXISTS jobs"))
+    conn.execute(sa.text("DROP TYPE IF EXISTS job_status"))
+    conn.execute(sa.text("DROP TYPE IF EXISTS job_type"))

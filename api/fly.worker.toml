@@ -1,0 +1,17 @@
+# Fly.io deployment configuration for MwalimuKit worker service
+app = "mwalimukit-worker"
+primary_region = "fra"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[processes]
+  app = "sh start-worker.sh"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 256
+
+[env]
+  API_ENV = "production"

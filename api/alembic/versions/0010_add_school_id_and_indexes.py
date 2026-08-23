@@ -19,12 +19,12 @@ def upgrade() -> None:
 
     # --- news_items ---
     op.add_column("news_items", sa.Column("school_id", UUID(as_uuid=True), nullable=False, server_default="00000000-0000-0000-0000-000000000000"))
-    conn.execute("""
+    conn.execute(sa.text("""
         UPDATE news_items
         SET school_id = users.school_id
         FROM users
         WHERE news_items.created_by = users.id
-    """)
+    """))
     op.alter_column("news_items", "school_id", server_default=None)
     op.create_foreign_key("fk_news_items_school_id", "news_items", "schools", ["school_id"], ["id"], ondelete="CASCADE")
     op.create_index("ix_news_items_school_created", "news_items", ["school_id", "created_at"])
@@ -32,12 +32,12 @@ def upgrade() -> None:
 
     # --- scores ---
     op.add_column("scores", sa.Column("school_id", UUID(as_uuid=True), nullable=False, server_default="00000000-0000-0000-0000-000000000000"))
-    conn.execute("""
+    conn.execute(sa.text("""
         UPDATE scores
         SET school_id = assessment_runs.school_id
         FROM assessment_runs
         WHERE scores.run_id = assessment_runs.id
-    """)
+    """))
     op.alter_column("scores", "school_id", server_default=None)
     op.create_foreign_key("fk_scores_school_id", "scores", "schools", ["school_id"], ["id"], ondelete="CASCADE")
     op.create_index("ix_scores_school_run_learner", "scores", ["school_id", "run_id", "learner_id"])
@@ -45,12 +45,12 @@ def upgrade() -> None:
 
     # --- learner_exam_scores ---
     op.add_column("learner_exam_scores", sa.Column("school_id", UUID(as_uuid=True), nullable=False, server_default="00000000-0000-0000-0000-000000000000"))
-    conn.execute("""
+    conn.execute(sa.text("""
         UPDATE learner_exam_scores
         SET school_id = term_exams.school_id
         FROM term_exams
         WHERE learner_exam_scores.term_exam_id = term_exams.id
-    """)
+    """))
     op.alter_column("learner_exam_scores", "school_id", server_default=None)
     op.create_foreign_key("fk_learner_exam_scores_school_id", "learner_exam_scores", "schools", ["school_id"], ["id"], ondelete="CASCADE")
     op.create_index("ix_learner_exam_scores_school_exam", "learner_exam_scores", ["school_id", "term_exam_id", "learner_id"])

@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     env: str = Field(default="development", alias="API_ENV")
     api_port: int = Field(default=8000, alias="API_PORT")
     secret_key: str = Field(default="dev-secret-change-me", alias="API_SECRET_KEY")
-    cors_origins: list[str] = Field(default_factory=lambda: [
+    cors_origins: str | list[str] = Field(default_factory=lambda: [
         "http://localhost:5173",
         "http://localhost:3000",
         "https://mwalimukit.vercel.app",
