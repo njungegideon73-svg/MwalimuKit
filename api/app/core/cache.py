@@ -78,6 +78,11 @@ async def cache_delete_pattern(prefix: str) -> None:
         logger.warning("cache_invalidation_failed", key=prefix, reason=str(exc))
 
 
+async def invalidate_catalogue_cache() -> None:
+    """Invalidate all cached curriculum catalogue entries."""
+    await cache_delete_pattern("catalogue")
+
+
 def cached(prefix: str, ttl: int = 300, key_parts: list[str] | None = None):
     """Decorator factory for caching async endpoint results."""
     def decorator(func: Callable):
