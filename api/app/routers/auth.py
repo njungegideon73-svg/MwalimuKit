@@ -96,7 +96,7 @@ async def login(
 
     try:
         user_agent = request.headers.get("user-agent", "")
-        result = await svc_login(db, email=payload.email, password=payload.password, user_agent=user_agent)
+        result, user = await svc_login(db, email=payload.email, password=payload.password, user_agent=user_agent)
     except ValueError:
         count = await register_login_failure(payload.email, ip)
         inc_counter("mwalimukit_login_failures_total", {"reason": "bad_credentials"})
@@ -117,19 +117,15 @@ async def login(
         raise HTTPException(status_code=401, detail="Invalid email or password.") from None
 
     await clear_login_failures(payload.email, ip)
-    user = (
-        await db.execute(select(User).where(User.email == payload.email))
-    ).scalar_one_or_none()
-    if user:
-        user.last_login_at = datetime.now(tz=timezone.utc)
-        await db.commit()
-        await log_activity(
-            db,
-            user_id=user.id,
-            school_id=user.school_id,
-            action="auth.login",
-            details={"email": user.email, "ip": ip},
-        )
+    user.last_login_at = datetime.now(tz=timezone.utc)
+    await log_activity(
+        db,
+        user_id=user.id,
+        school_id=user.school_id,
+        action="auth.login",
+        details={"email": user.email, "ip": ip},
+    )
+    await db.commit()
     return result
 
 
@@ -196,7 +192,8 @@ async def change_password(
     from app.core.logging import get_logger
 
     get_logger().info("security.password_changed", user_id=str(user.id))
-    return await pair_for_user(user)
+    pair, _ = await pair_for_user(user)
+    return pair
 
 
 @router.post("/change-school-code")

@@ -90,16 +90,18 @@ async def signup(db: AsyncSession, payload: SignupRequest, user_agent: str | Non
     await db.commit()
     await db.refresh(user)
 
-    return await _pair_with_session(user, user_agent)
+    pair, _ = await _pair_with_session(user, user_agent)
+    return pair
 
 
-async def login(db: AsyncSession, *, email: str, password: str, user_agent: str | None = None) -> TokenPair:
+async def login(db: AsyncSession, *, email: str, password: str, user_agent: str | None = None) -> tuple[TokenPair, User]:
     user = (
         await db.execute(select(User).where(User.email == email, User.is_active.is_(True)))
     ).scalar_one_or_none()
     if user is None or not verify_password(password, user.password_hash):
         raise ValueError("Invalid email or password.")
-    return await _pair_with_session(user, user_agent)
+    pair, _ = await _pair_with_session(user, user_agent)
+    return pair, user
 
 
 async def refresh_tokens(db: AsyncSession, refresh_token: str, user_agent: str | None = None) -> TokenPair:
@@ -131,10 +133,11 @@ async def refresh_tokens(db: AsyncSession, refresh_token: str, user_agent: str |
     if jti:
         await _revoke_refresh(jti)
 
-    return await _pair_with_session(user, user_agent)
+    pair, _ = await _pair_with_session(user, user_agent)
+    return pair
 
 
-async def _pair_with_session(user: User, user_agent: str | None = None) -> TokenPair:
+async def _pair_with_session(user: User, user_agent: str | None = None) -> tuple[TokenPair, User]:
     """Create a token pair and register a server-side session."""
     pair = _pair(user)
     # Extract the refresh-token jti to bind the session to it.
@@ -144,7 +147,7 @@ async def _pair_with_session(user: User, user_agent: str | None = None) -> Token
     except JWTError:
         jti = None
     await create_session(str(user.id), jti)
-    return pair
+    return pair, user
 
 
 def _pair(user: User) -> TokenPair:

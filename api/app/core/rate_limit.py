@@ -128,20 +128,13 @@ async def is_locked_out(email: str, ip: str) -> bool:
 async def is_locked_out_any_ip(email: str) -> bool:
     """True when this email has been locked out from any IP."""
     redis = await _get_redis()
+    key = f"account_locked:{email.lower()}"
     if redis is not None:
         try:
-            # Check for any lockout key matching this email
-            pattern = f"lock:{email.lower()}:*"
-            async for _ in redis.scan_iter(pattern):
-                return True
+            return await redis.exists(key) == 1
         except Exception:
             pass
-    # Check in-memory store
-    prefix = f"locked:lock:{email.lower()}:"
-    for key in _memory:
-        if key.startswith(prefix):
-            return True
-    return False
+    return _memory_get(key) > 0
 
 
 async def register_login_failure(email: str, ip: str) -> int:
@@ -157,9 +150,11 @@ async def clear_login_failures(email: str, ip: str) -> None:
     if redis is not None:
         try:
             await redis.delete(f"fl:{email.lower()}:{ip}")
+            await redis.delete(f"account_locked:{email.lower()}")
         except Exception:
             pass
     _memory.pop(f"fl:{email.lower()}:{ip}", None)
+    _memory.pop(f"account_locked:{email.lower()}", None)
 
 
 async def _apply_lockout(email: str, ip: str) -> None:
@@ -168,9 +163,11 @@ async def _apply_lockout(email: str, ip: str) -> None:
     if redis is not None:
         try:
             await redis.setex(key, LOCKOUT_DURATION_SECONDS, "1")
+            await redis.setex(f"account_locked:{email.lower()}", LOCKOUT_DURATION_SECONDS, "1")
         except Exception:
             pass
     _memory_incr(f"locked:{key}", LOCKOUT_DURATION_SECONDS)
+    _memory_incr(f"account_locked:{email.lower()}", LOCKOUT_DURATION_SECONDS)
     inc_counter("mwalimukit_lockouts_total")
     logger.warning("security.account_locked", email=email, ip=ip)
 
