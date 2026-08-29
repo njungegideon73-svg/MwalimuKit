@@ -51,7 +51,7 @@ async def get_catalogue(user: CurrentUser, db: AsyncSession = Depends(get_db)):
 
     result = CurriculumCatalogue(
         learning_areas=[
-            LearningAreaOut(code=la.code, name=la.name, level=la.level.value, sort_order=la.sort_order)
+            LearningAreaOut(id=str(la.id), code=la.code, name=la.name, level=la.level.value, sort_order=la.sort_order)
             for la in las
         ],
         strands=[

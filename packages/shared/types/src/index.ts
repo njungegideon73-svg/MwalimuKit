@@ -14,6 +14,7 @@ export type AssessmentSource = 'ai' | 'manual' | 'template';
 // ---------- Curriculum ----------
 
 export interface LearningArea {
+  id: ID;
   code: string;
   name: string;
   level: Level;

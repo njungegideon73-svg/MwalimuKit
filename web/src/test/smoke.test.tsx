@@ -65,7 +65,7 @@ vi.mock('@/lib/feature-flags', () => ({
 
 vi.mock('@/lib/curriculum', () => ({
   getCurriculum: vi.fn().mockResolvedValue({
-    learning_areas: [{ code: 'MAT', name: 'Mathematics', level: 'lower_primary', sort_order: 1 }],
+    learning_areas: [{ id: 'la-1', code: 'MAT', name: 'Mathematics', level: 'lower_primary', sort_order: 1 }],
     strands: [{ code: 'MAT-LP-01', learning_area_code: 'MAT', name: 'Numbers', sort_order: 1 }],
     sub_strands: [{ code: 'MAT-LP-01-01', strand_code: 'MAT-LP-01', name: 'Counting', sort_order: 1 }],
   }),

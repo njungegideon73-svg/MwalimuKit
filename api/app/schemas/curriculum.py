@@ -5,6 +5,7 @@ from pydantic import BaseModel
 
 
 class LearningAreaOut(BaseModel):
+    id: str
     code: str
     name: str
     level: str

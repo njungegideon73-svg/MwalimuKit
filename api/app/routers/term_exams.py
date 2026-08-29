@@ -88,7 +88,11 @@ async def list_term_exams(
 ) -> list[TermExamOut]:
     stmt = select(TermExam).where(TermExam.school_id == user.school_id)
     if class_id:
-        stmt = stmt.where(TermExam.class_id == UUID(class_id))
+        try:
+            class_uuid = UUID(class_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=f"Invalid class_id format: {exc.args[0]}")
+        stmt = stmt.where(TermExam.class_id == class_uuid)
     if term:
         stmt = stmt.where(TermExam.term == term)
     if academic_year:
@@ -141,10 +145,16 @@ async def create_term_exam(
     user: CurrentUser,
     db: AsyncSession = Depends(get_db),
 ) -> TermExamOut:
-    await _resolve_class(db, user, UUID(payload.class_id))
+    try:
+        class_uuid = UUID(payload.class_id)
+        learning_area_uuid = UUID(payload.learning_area_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=f"Invalid UUID format: {exc.args[0]}")
+
+    await _resolve_class(db, user, class_uuid)
 
     la = (await db.execute(
-        select(LearningArea).where(LearningArea.id == UUID(payload.learning_area_id))
+        select(LearningArea).where(LearningArea.id == learning_area_uuid)
     )).scalar_one_or_none()
     if la is None:
         raise HTTPException(status_code=404, detail="Learning area not found")
@@ -152,8 +162,8 @@ async def create_term_exam(
     te = TermExam(
         id=uuid4(),
         school_id=user.school_id,
-        class_id=UUID(payload.class_id),
-        learning_area_id=UUID(payload.learning_area_id),
+        class_id=class_uuid,
+        learning_area_id=learning_area_uuid,
         term=payload.term,
         exam_type=payload.exam_type,
         academic_year=payload.academic_year,
@@ -299,10 +309,15 @@ async def upsert_exam_scores(
         raise HTTPException(status_code=404, detail="Term exam not found")
 
     for entry in payload.scores:
+        try:
+            learner_uuid = UUID(entry.learner_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=f"Invalid learner_id format: {exc.args[0]}")
+
         existing = (await db.execute(
             select(LearnerExamScore).where(
                 LearnerExamScore.term_exam_id == exam_id,
-                LearnerExamScore.learner_id == UUID(entry.learner_id),
+                LearnerExamScore.learner_id == learner_uuid,
             )
         )).scalar_one_or_none()
 
@@ -316,7 +331,7 @@ async def upsert_exam_scores(
             score = LearnerExamScore(
                 id=uuid4(),
                 term_exam_id=exam_id,
-                learner_id=UUID(entry.learner_id),
+                learner_id=learner_uuid,
                 school_id=te.school_id,
                 marks=entry.marks,
                 grade=grade,

@@ -144,7 +144,7 @@ export function SBADashboardPage() {
               <select className="input" value={selectedLA} onChange={(e) => setSelectedLA(e.target.value)}>
                 <option value="">Select subject...</option>
                 {availableLearningAreas.map((la) => (
-                  <option key={la.code} value={la.code}>{la.name}</option>
+                  <option key={la.code} value={la.id}>{la.name}</option>
                 ))}
               </select>
             </div>
