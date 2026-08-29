@@ -96,21 +96,36 @@ async def list_term_exams(
     stmt = stmt.order_by(TermExam.created_at.desc())
     rows = (await db.execute(stmt)).scalars().all()
 
+    class_ids = {r.class_id for r in rows}
+    la_ids = {r.learning_area_id for r in rows}
+
+    class_map: dict[str, str] = {}
+    if class_ids:
+        class_rows = (
+            await db.execute(
+                select(SchoolClass.id, SchoolClass.name).where(SchoolClass.id.in_(class_ids))
+            )
+        ).all()
+        class_map = {str(row[0]): row[1] for row in class_rows}
+
+    la_map: dict[str, str] = {}
+    if la_ids:
+        la_rows = (
+            await db.execute(
+                select(LearningArea.id, LearningArea.name).where(LearningArea.id.in_(la_ids))
+            )
+        ).all()
+        la_map = {str(row[0]): row[1] for row in la_rows}
+
     result = []
     for r in rows:
-        cls_row = (await db.execute(
-            select(SchoolClass).where(SchoolClass.id == r.class_id)
-        )).scalar_one_or_none()
-        la_row = (await db.execute(
-            select(LearningArea).where(LearningArea.id == r.learning_area_id)
-        )).scalar_one_or_none()
         result.append(TermExamOut(
             id=str(r.id),
             school_id=str(r.school_id),
             class_id=str(r.class_id),
-            class_name=cls_row.name if cls_row else "",
+            class_name=class_map.get(str(r.class_id), ""),
             learning_area_id=str(r.learning_area_id),
-            learning_area_name=la_row.name if la_row else "",
+            learning_area_name=la_map.get(str(r.learning_area_id), ""),
             term=r.term,
             exam_type=r.exam_type,
             academic_year=r.academic_year,
@@ -391,11 +406,18 @@ async def learner_sba_report_card(
     subjects: list[SubjectReport] = []
     exam_type_scores: dict[str, dict[str, list[float]]] = {}  # {term_key: {exam_type: [scores]}}
 
+    la_ids = {exam.learning_area_id for exam in exams}
+    la_map: dict[str, str] = {}
+    if la_ids:
+        la_rows = (
+            await db.execute(
+                select(LearningArea.id, LearningArea.name).where(LearningArea.id.in_(la_ids))
+            )
+        ).all()
+        la_map = {str(row[0]): row[1] for row in la_rows}
+
     for exam in exams:
-        la = (await db.execute(
-            select(LearningArea).where(LearningArea.id == exam.learning_area_id)
-        )).scalar_one_or_none()
-        subject_name = la.name if la else "Unknown"
+        subject_name = la_map.get(str(exam.learning_area_id), "Unknown")
 
         score = score_map.get(str(exam.id))
         marks = score.marks if score else None
@@ -495,11 +517,18 @@ async def class_analytics(
     terms_set: set[int] = set()
     subject_averages: dict[str, dict[str, list[float]]] = {}
 
+    la_ids = {exam.learning_area_id for exam in exams}
+    la_map: dict[str, str] = {}
+    if la_ids:
+        la_rows = (
+            await db.execute(
+                select(LearningArea.id, LearningArea.name).where(LearningArea.id.in_(la_ids))
+            )
+        ).all()
+        la_map = {str(row[0]): row[1] for row in la_rows}
+
     for exam in exams:
-        la = (await db.execute(
-            select(LearningArea).where(LearningArea.id == exam.learning_area_id)
-        )).scalar_one_or_none()
-        subject_name = la.name if la else "Unknown"
+        subject_name = la_map.get(str(exam.learning_area_id), "Unknown")
         subjects_set.add(subject_name)
         exam_types_set.add(exam.exam_type)
         terms_set.add(exam.term)

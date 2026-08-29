@@ -38,7 +38,18 @@ async def list_assessments(db: AsyncSession, school_id: UUID) -> list[Assessment
             .order_by(Assessment.updated_at.desc())
         )
     ).scalars().all()
-    return [_to_out(a) for a in rows]
+
+    all_la_ids = {a.learning_area_id for a in rows}
+    la_map: dict[str, str] = {}
+    if all_la_ids:
+        la_rows = (
+            await db.execute(
+                select(LearningArea.id, LearningArea.code).where(LearningArea.id.in_(all_la_ids))
+            )
+        ).all()
+        la_map = {str(row[0]): row[1] for row in la_rows}
+
+    return [_to_out_with_map(a, la_map) for a in rows]
 
 
 async def create_assessment(db: AsyncSession, payload: AssessmentIn, school_id: UUID, user_id: UUID) -> AssessmentOut:
@@ -175,6 +186,27 @@ def _to_out(a: Assessment) -> AssessmentOut:
         name=a.name,
         description=a.description,
         learning_area_code="",
+        strand_code=a.strand_code or "",
+        sub_strand_codes=list(a.sub_strand_codes) if a.sub_strand_codes else [],
+        source=a.source.value if hasattr(a.source, "value") else str(a.source),
+        rubric=a.rubric,
+        items=a.items,
+        tags=a.tags,
+        is_favourite=a.is_favourite,
+        created_at=a.created_at.isoformat(),
+        updated_at=a.updated_at.isoformat(),
+        deleted_at=a.deleted_at.isoformat() if a.deleted_at else None,
+    )
+
+
+def _to_out_with_map(a: Assessment, la_map: dict[str, str]) -> AssessmentOut:
+    return AssessmentOut(
+        id=a.id,
+        owner_id=a.owner_id,
+        school_id=a.school_id,
+        name=a.name,
+        description=a.description,
+        learning_area_code=la_map.get(str(a.learning_area_id), ""),
         strand_code=a.strand_code or "",
         sub_strand_codes=list(a.sub_strand_codes) if a.sub_strand_codes else [],
         source=a.source.value if hasattr(a.source, "value") else str(a.source),

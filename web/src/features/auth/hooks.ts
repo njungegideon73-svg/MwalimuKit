@@ -1,38 +1,30 @@
 import { useMutation } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { login, signup, changePassword, changeSchoolCode } from '@/features/auth/api';
-import { saveTokens, clearTokens } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
 import toast from 'react-hot-toast';
 
 export function useLogin() {
+  const login = useAuthStore((s) => s.login);
   return useMutation({
     mutationFn: ({ email, password }: { email: string; password: string }) => login(email, password),
-    onSuccess: (data) => {
-      saveTokens(data.access_token, data.refresh_token);
-      useAuthStore.getState().setUser(data.user);
-    },
     onError: (error: Error) => toast.error(error.message),
   });
 }
 
 export function useSignup() {
+  const signup = useAuthStore((s) => s.signup);
   return useMutation({
     mutationFn: (data: { full_name: string; email: string; password: string; school_code: string }) => signup(data),
-    onSuccess: (data) => {
-      saveTokens(data.access_token, data.refresh_token);
-      useAuthStore.getState().setUser(data.user);
-    },
     onError: (error: Error) => toast.error(error.message),
   });
 }
 
 export function useLogout() {
   const navigate = useNavigate();
+  const logout = useAuthStore((s) => s.logout);
   return useMutation({
     mutationFn: async () => {
-      clearTokens();
-      await useAuthStore.getState().hydrate();
+      await logout();
     },
     onSuccess: () => {
       navigate('/login');
@@ -41,6 +33,7 @@ export function useLogout() {
 }
 
 export function useChangePassword() {
+  const changePassword = useAuthStore((s) => s.changePassword);
   return useMutation({
     mutationFn: ({ current_password, new_password }: { current_password: string; new_password: string }) =>
       changePassword(current_password, new_password),
@@ -50,6 +43,7 @@ export function useChangePassword() {
 }
 
 export function useChangeSchoolCode() {
+  const changeSchoolCode = useAuthStore((s) => s.changeSchoolCode);
   return useMutation({
     mutationFn: ({ current_password, new_school_code }: { current_password: string; new_school_code: string }) =>
       changeSchoolCode(current_password, new_school_code),

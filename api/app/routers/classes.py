@@ -34,7 +34,6 @@ async def _resolve_learning_area_ids(
 async def list_classes(user: CurrentUser, db: AsyncSession = Depends(get_db)) -> list[ClassOut]:
     user_role = user.role if hasattr(user.role, "value") else str(user.role)
     if user_role in (UserRole.school_admin.value, UserRole.super_admin.value):
-        # School admins and super admins see all classes in their school
         rows = (
             await db.execute(
                 select(SchoolClass)
@@ -43,7 +42,6 @@ async def list_classes(user: CurrentUser, db: AsyncSession = Depends(get_db)) ->
             )
         ).scalars().all()
     else:
-        # Teachers see only their own classes
         rows = (
             await db.execute(
                 select(SchoolClass)
@@ -51,7 +49,18 @@ async def list_classes(user: CurrentUser, db: AsyncSession = Depends(get_db)) ->
                 .order_by(SchoolClass.created_at.desc())
             )
         ).scalars().all()
-    return [await _to_out_async(c, db) for c in rows]
+
+    all_la_ids = {la_id for c in rows for la_id in (c.learning_area_ids or [])}
+    la_map: dict[str, str] = {}
+    if all_la_ids:
+        la_rows = (
+            await db.execute(
+                select(LearningArea.id, LearningArea.code).where(LearningArea.id.in_(all_la_ids))
+            )
+        ).all()
+        la_map = {str(row[0]): row[1] for row in la_rows}
+
+    return [_to_out_with_map(c, la_map) for c in rows]
 
 
 @router.post("", response_model=ClassOut)
@@ -124,6 +133,21 @@ async def _resolve_la_codes_from_ids(
 
 async def _to_out_async(c: SchoolClass, db: AsyncSession) -> ClassOut:
     codes = await _resolve_la_codes_from_ids(db, c.learning_area_ids or [])
+    return ClassOut(
+        id=c.id,
+        school_id=c.school_id,
+        teacher_id=c.teacher_id,
+        name=c.name,
+        grade_level=c.grade_level,
+        learning_area_codes=codes,
+        deleted_at=c.deleted_at.isoformat() if c.deleted_at else None,
+        created_at=c.created_at.isoformat(),
+        updated_at=c.updated_at.isoformat(),
+    )
+
+
+def _to_out_with_map(c: SchoolClass, la_map: dict[str, str]) -> ClassOut:
+    codes = [la_map[str(la_id)] for la_id in (c.learning_area_ids or []) if str(la_id) in la_map]
     return ClassOut(
         id=c.id,
         school_id=c.school_id,

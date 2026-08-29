@@ -20,6 +20,8 @@ interface AuthState {
   hydrate: () => Promise<void>;
   getRedirectPath: () => string;
   setUser: (user: User | null) => void;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<{ changed: boolean }>;
+  changeSchoolCode: (currentPassword: string, newSchoolCode: string) => Promise<{ changed: boolean; school_id: string }>;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -33,7 +35,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       { method: 'POST', json: { email, password } },
     );
     saveTokens(res.access_token, res.refresh_token);
-    set({ user: res.user, isAuthenticated: true });
+    set({ user: res.user, isAuthenticated: true, isLoading: false });
     setSentryUser(res.user);
   },
 
@@ -43,7 +45,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       { method: 'POST', json: data },
     );
     saveTokens(res.access_token, res.refresh_token);
-    set({ user: res.user, isAuthenticated: true });
+    set({ user: res.user, isAuthenticated: true, isLoading: false });
     setSentryUser(res.user);
   },
 
@@ -57,16 +59,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   hydrate: async () => {
+    const { user } = get();
+    if (user) {
+      set({ isLoading: false });
+      return;
+    }
     const { access, refresh } = getTokens();
     if (!access && !refresh) {
       set({ isLoading: false });
       return;
     }
     try {
-      const user = await apiFetch<{ id: string; school_id: string; email: string; full_name: string; role: string }>(
+      const data = await apiFetch<{ id: string; school_id: string; email: string; full_name: string; role: string }>(
         '/schools/me',
       );
-      const typedUser = user as User;
+      const typedUser = data as User;
       set({ user: typedUser, isAuthenticated: true, isLoading: false });
       setSentryUser(typedUser);
     } catch {
@@ -91,5 +98,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   setUser: (user: User | null) => {
     set({ user, isAuthenticated: !!user, isLoading: false });
+  },
+
+  changePassword: async (currentPassword, newPassword) => {
+    const res = await apiFetch<{ changed: boolean }>('/auth/change-password', {
+      method: 'POST',
+      json: { current_password: currentPassword, new_password: newPassword },
+    });
+    return res;
+  },
+
+  changeSchoolCode: async (currentPassword, newSchoolCode) => {
+    const res = await apiFetch<{ changed: boolean; school_id: string }>('/auth/change-school-code', {
+      method: 'POST',
+      json: { current_password: currentPassword, new_school_code: newSchoolCode },
+    });
+    return res;
   },
 }));
