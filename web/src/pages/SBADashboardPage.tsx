@@ -62,6 +62,11 @@ export function SBADashboardPage() {
     staleTime: 5 * 60_000,
   });
 
+  // Debug: log learning area data shape to diagnose missing id
+  if (learningAreas.length > 0) {
+    console.log('Learning areas sample:', learningAreas[0]);
+  }
+
   const availableLearningAreas = useMemo(() => {
     if (!selectedClass || !classes.length) return learningAreas;
     const cls = classes.find((c) => c.id === selectedClass);
@@ -154,7 +159,7 @@ export function SBADashboardPage() {
               <select className="input" value={selectedLA} onChange={(e) => setSelectedLA(e.target.value)}>
                 <option value="">Select subject...</option>
                 {availableLearningAreas.map((la) => (
-                  <option key={la.code} value={la.id}>{la.name}</option>
+                  <option key={la.code} value={la.code}>{la.name}</option>
                 ))}
               </select>
             </div>

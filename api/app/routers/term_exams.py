@@ -159,9 +159,24 @@ async def create_term_exam(
     )
     try:
         class_uuid = UUID(payload.class_id)
-        learning_area_uuid = UUID(payload.learning_area_id)
     except ValueError as exc:
-        raise HTTPException(status_code=422, detail=f"Invalid UUID format: {exc.args[0]}")
+        raise HTTPException(status_code=422, detail=f"Invalid class_id format: {exc.args[0]}")
+
+    try:
+        learning_area_uuid = UUID(payload.learning_area_id)
+    except ValueError:
+        # Fallback: resolve by code if a UUID was not provided
+        la = (
+            await db.execute(
+                select(LearningArea).where(LearningArea.code == payload.learning_area_id)
+            )
+        ).scalar_one_or_none()
+        if la is None:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Invalid learning_area_id format: {payload.learning_area_id}",
+            )
+        learning_area_uuid = la.id
 
     await _resolve_class(db, user, class_uuid)
 
@@ -171,7 +186,9 @@ async def create_term_exam(
     if la is None:
         raise HTTPException(status_code=404, detail="Learning area not found")
 
-    school_id = payload.school_id or str(user.school_id)
+    school_id = payload.school_id or str(user.school_id or "")
+    if not school_id:
+        raise HTTPException(status_code=400, detail="school_id is required")
     try:
         school_uuid = UUID(school_id)
     except ValueError as exc:
