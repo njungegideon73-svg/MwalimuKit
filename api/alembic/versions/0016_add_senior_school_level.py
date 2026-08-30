@@ -28,6 +28,7 @@ def upgrade() -> None:
     op.execute(
         "ALTER TABLE learning_areas ADD CONSTRAINT ck_learning_area_level "
         "CHECK (level IN ('lower_primary', 'upper_primary', 'jss', 'senior_school'))"
+    )
 
 
 def downgrade() -> None:
