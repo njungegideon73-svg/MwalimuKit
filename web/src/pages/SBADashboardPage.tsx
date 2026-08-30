@@ -85,7 +85,7 @@ export function SBADashboardPage() {
       apiFetch('/term-exams', {
         method: 'POST',
         json: {
-          school_id: user.school_id || undefined,
+          school_id: user?.school_id || undefined,
           class_id: selectedClass,
           learning_area_id: selectedLA,
           term: selectedTerm,
