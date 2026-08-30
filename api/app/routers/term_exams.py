@@ -39,19 +39,23 @@ EXAM_TYPE_LABELS = {"opener": "Opener", "midterm": "Midterm", "endterm": "End Te
 
 
 def _compute_grade(marks: int, max_marks: int) -> str:
+    """Compute CBC/CBE grade band from marks.
+
+    CBC grading bands (per KNEC guidelines):
+      EE (Exceeding Expectations): 75–100%
+      ME (Meeting Expectations):   41–74%
+      AE (Approaching Expectations): 21–40%
+      BE (Below Expectations):     0–20%
+    """
     pct = (marks / max_marks) * 100 if max_marks > 0 else 0
-    if pct >= 80:
-        return "A"
-    elif pct >= 70:
-        return "B"
-    elif pct >= 60:
-        return "C"
-    elif pct >= 50:
-        return "D"
-    elif pct >= 40:
-        return "E"
+    if pct >= 75:
+        return "EE"
+    elif pct >= 41:
+        return "ME"
+    elif pct >= 21:
+        return "AE"
     else:
-        return "F"
+        return "BE"
 
 
 async def _resolve_class(db: AsyncSession, user, class_id: UUID) -> SchoolClass:

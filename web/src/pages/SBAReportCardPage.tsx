@@ -32,12 +32,17 @@ const EXAM_TYPE_LABELS: Record<string, string> = { opener: 'Opener', midterm: 'M
 const TERM_LABELS: Record<string, string> = { '1': 'Term 1', '2': 'Term 2', '3': 'Term 3' };
 
 const GRADE_COLORS: Record<string, string> = {
-  A: 'bg-green-100 text-green-800',
-  B: 'bg-blue-100 text-blue-800',
-  C: 'bg-amber-100 text-amber-800',
-  D: 'bg-orange-100 text-orange-800',
-  E: 'bg-red-100 text-red-800',
-  F: 'bg-red-100 text-red-800',
+  EE: 'bg-green-100 text-green-800',  // Exceeding Expectations (75-100%)
+  ME: 'bg-blue-100 text-blue-800',    // Meeting Expectations (41-74%)
+  AE: 'bg-amber-100 text-amber-800',  // Approaching Expectations (21-40%)
+  BE: 'bg-red-100 text-red-800',      // Below Expectations (0-20%)
+};
+
+const GRADE_LABELS: Record<string, string> = {
+  EE: 'Exceeding Expectations',
+  ME: 'Meeting Expectations',
+  AE: 'Approaching Expectations',
+  BE: 'Below Expectations',
 };
 
 export function SBAReportCardPage() {
@@ -291,9 +296,9 @@ export function SBAReportCardPage() {
                           <td className="py-2 px-3 text-center">
                             {sub.percentage !== null ? `${sub.percentage}%` : '-'}
                           </td>
-                          <td className="py-2 px-3 text-center">
+                           <td className="py-2 px-3 text-center">
                             {sub.grade && (
-                              <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${GRADE_COLORS[sub.grade] || 'bg-gray-100 text-gray-800'}`}>
+                              <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${GRADE_COLORS[sub.grade] || 'bg-gray-100 text-gray-800'}`} title={GRADE_LABELS[sub.grade] || sub.grade}>
                                 {sub.grade}
                               </span>
                             )}

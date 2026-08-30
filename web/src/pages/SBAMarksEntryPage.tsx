@@ -4,6 +4,7 @@ import { ArrowLeft, Save } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api';
 import toast from 'react-hot-toast';
+import { computeGradeFromMarks, getGradeColor, getGradeLabel } from '@/lib/grades';
 
 interface ExamScore {
   id: string;
@@ -150,12 +151,14 @@ export function SBAMarksEntryPage() {
             {existingScores.map((s) => {
               const marks = scores[s.learner_id] ?? 0;
               const pct = maxMarks > 0 ? Math.round((marks / maxMarks) * 100) : 0;
-              let grade = 'F';
-              if (pct >= 80) grade = 'A';
-              else if (pct >= 70) grade = 'B';
-              else if (pct >= 60) grade = 'C';
-              else if (pct >= 50) grade = 'D';
-              else if (pct >= 40) grade = 'E';
+              // CBC/CBE grading bands (per KNEC guidelines):
+              // EE (Exceeding Expectations): 75–100%
+              // ME (Meeting Expectations):   41–74%
+              // AE (Approaching Expectations): 21–40%
+              // BE (Below Expectations):     0–20%
+              const grade = computeGradeFromMarks(marks, maxMarks);
+              const gradeLabel = getGradeLabel(grade);
+              const gradeColor = getGradeColor(grade);
 
               return (
                 <tr key={s.learner_id} className="border-b border-gray-100 hover:bg-gray-50/50">
@@ -178,13 +181,7 @@ export function SBAMarksEntryPage() {
                   </td>
                   <td className="py-3 px-4 text-center text-gray-600">{pct}%</td>
                   <td className="py-3 px-4 text-center">
-                    <span className={`font-semibold ${
-                      grade === 'A' ? 'text-green-600' :
-                      grade === 'B' ? 'text-blue-600' :
-                      grade === 'C' ? 'text-amber-600' :
-                      grade === 'D' ? 'text-orange-600' :
-                      'text-red-600'
-                    }`}>
+                    <span className={`font-semibold ${gradeColor}`} title={gradeLabel}>
                       {grade}
                     </span>
                   </td>

@@ -44,6 +44,7 @@ export function SBADashboardPage() {
   const [selectedTerm, setSelectedTerm] = useState<number>(1);
   const [selectedExamType, setSelectedExamType] = useState('opener');
   const [academicYear, setAcademicYear] = useState(currentYear);
+  const [maxMarks, setMaxMarks] = useState<number>(100);
   const [filterClass, setFilterClass] = useState('');
   const [filterTerm, setFilterTerm] = useState<number | ''>('');
   const [filterYear, setFilterYear] = useState(currentYear);
@@ -94,7 +95,7 @@ export function SBADashboardPage() {
         term: selectedTerm,
         exam_type: selectedExamType,
         academic_year: academicYear,
-        max_marks: 100,
+        max_marks: maxMarks,
       };
       console.log('Creating term exam with payload:', payload);
       return apiFetch('/term-exams', {
@@ -107,6 +108,7 @@ export function SBADashboardPage() {
       setShowCreate(false);
       setSelectedClass('');
       setSelectedLA('');
+      setMaxMarks(100);
       toast.success('Term exam created');
     },
     onError: (err: any) => {
@@ -182,6 +184,18 @@ export function SBADashboardPage() {
             <div>
               <label className="label">Academic Year</label>
               <input className="input" value={academicYear} onChange={(e) => setAcademicYear(e.target.value)} />
+            </div>
+            <div>
+              <label className="label">Total Marks</label>
+              <input
+                type="number"
+                min={1}
+                max={1000}
+                className="input"
+                value={maxMarks}
+                onChange={(e) => setMaxMarks(Math.max(1, Number(e.target.value)))}
+              />
+              <p className="text-xs text-gray-500 mt-1">The maximum marks for this exam (e.g., 30, 40, 70, 100). Marks will be converted to % for grading.</p>
             </div>
           </div>
           <button

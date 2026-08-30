@@ -67,7 +67,7 @@ not listed here is **not** in v0.1.
 
 ### 4.1 Classes
 
-- Fields: name, grade level (PP1–Grade 9), learning area(s).
+- Fields: name, grade level (PP1–Grade 12), learning area(s).
 - A teacher can have multiple classes; a class belongs to exactly one
   teacher in v0.1.
 

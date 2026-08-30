@@ -1,4 +1,10 @@
-export type Level = 'lower_primary' | 'upper_primary' | 'jss';
+/** CBC/CBE educational levels per Kenya's 2-6-3-3-3 structure:
+ *  - lower_primary: Grades 1-3 (Ages 6-8)
+ *  - upper_primary: Grades 4-6 (Ages 9-11)
+ *  - jss: Junior School, Grades 7-9 (Ages 12-15)
+ *  - senior_school: Grades 10-12 (Ages 15-18) - STEM, Social Sciences, Arts & Sports pathways
+ */
+export type Level = 'lower_primary' | 'upper_primary' | 'jss' | 'senior_school';
 
 export interface LearningArea {
   code: string;          // e.g. "LP-MATH"

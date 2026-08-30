@@ -66,7 +66,7 @@ Assessment).
 | id            | uuid PK          |                                        |
 | code          | text UNIQUE NOT NULL | e.g. `LP-MATH`                      |
 | name          | text NOT NULL    |                                        |
-| level         | enum('lower_primary','upper_primary','jss') |                       |
+| level         | enum('lower_primary','upper_primary','jss','senior_school') |                       |
 | sort_order    | int              |                                        |
 
 ### `strands`
@@ -167,7 +167,7 @@ Assessment).
 | term_exam_id  | uuid FK term_exams |                                      |
 | learner_id    | uuid FK learners |                                        |
 | marks         | int NOT NULL     | 0..max_marks                           |
-| grade         | text NULL        | optional letter grade                  |
+| grade         | text NULL        | CBC grade band: EE/ME/AE/BE            |
 | comment       | text NULL        | optional teacher comment               |
 
 ### `news_items`

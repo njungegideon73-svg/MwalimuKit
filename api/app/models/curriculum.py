@@ -11,9 +11,24 @@ from app.models.base import Base, Timestamped, UUIDPK
 
 
 class CurriculumLevel(str, PyEnum):
+    """CBC/CBE educational levels per Kenya's 2-6-3-3-3 structure.
+
+    Early Years Education:
+      - Pre-Primary (PP1, PP2): Ages 4-5
+      - Lower Primary (Grades 1-3): Ages 6-8
+
+    Middle School Education:
+      - Upper Primary (Grades 4-6): Ages 9-11
+      - Junior School / JSS (Grades 7-9): Ages 12-15
+
+    Senior School Education:
+      - Senior School (Grades 10-12): Ages 15-18
+        (STEM, Social Sciences, Arts and Sports Science pathways)
+    """
     lower_primary = "lower_primary"
     upper_primary = "upper_primary"
     jss = "jss"
+    senior_school = "senior_school"
 
 
 class LearningArea(UUIDPK, Timestamped, Base):

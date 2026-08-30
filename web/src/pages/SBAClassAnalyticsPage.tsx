@@ -117,9 +117,11 @@ export function SBAClassAnalyticsPage() {
                       <td className="py-2 px-3 font-medium">{subject}</td>
                       {analytics.exam_types.map((et) => {
                         const avg = analytics.subject_averages[subject]?.[et];
+                        // Color coding aligned with CBC grading bands:
+                        // EE (Exceeding): >=75%, ME (Meeting): >=41%, AE (Approaching): >=21%, BE (Below): <21%
                         const color =
                           avg !== undefined
-                            ? avg >= 70 ? 'text-green-600' : avg >= 50 ? 'text-amber-600' : 'text-red-600'
+                            ? avg >= 75 ? 'text-green-600' : avg >= 41 ? 'text-blue-600' : avg >= 21 ? 'text-amber-600' : 'text-red-600'
                             : '';
                         return (
                           <td key={et} className={`py-2 px-3 text-center font-medium ${color}`}>
