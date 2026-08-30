@@ -152,8 +152,8 @@ def _register_exception_handlers(app: FastAPI, log) -> None:
     async def http_exception_handler(request: Request, exc: FHTTPException):
         """Sanitised HTTP error responses: generic message for 5xx-like
         client errors that may leak internals; structured detail for
-        well-known 4xx (401, 403, 404, 422, 429, 413)."""
-        safe_statuses = {400, 401, 403, 404, 409, 413, 429}
+        well-known 4xx (400, 401, 403, 404, 409, 413, 422, 429)."""
+        safe_statuses = {400, 401, 403, 404, 409, 413, 422, 429}
         if exc.status_code in safe_statuses:
             detail = exc.detail
         else:
