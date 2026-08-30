@@ -148,6 +148,15 @@ async def create_term_exam(
     user: CurrentUser,
     db: AsyncSession = Depends(get_db),
 ) -> TermExamOut:
+    logger.info(
+        "term_exam.create_attempt user_id=%s role=%s school_id=%s payload_school_id=%s class_id=%s learning_area_id=%s",
+        str(user.id),
+        user.role if hasattr(user.role, "value") else str(user.role),
+        str(user.school_id),
+        payload.school_id,
+        payload.class_id,
+        payload.learning_area_id,
+    )
     try:
         class_uuid = UUID(payload.class_id)
         learning_area_uuid = UUID(payload.learning_area_id)

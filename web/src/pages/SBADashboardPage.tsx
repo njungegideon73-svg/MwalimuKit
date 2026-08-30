@@ -81,19 +81,22 @@ export function SBADashboardPage() {
   });
 
   const createMutation = useMutation({
-    mutationFn: () =>
-      apiFetch('/term-exams', {
+    mutationFn: () => {
+      const payload = {
+        school_id: user?.school_id || undefined,
+        class_id: selectedClass,
+        learning_area_id: selectedLA,
+        term: selectedTerm,
+        exam_type: selectedExamType,
+        academic_year: academicYear,
+        max_marks: 100,
+      };
+      console.log('Creating term exam with payload:', payload);
+      return apiFetch('/term-exams', {
         method: 'POST',
-        json: {
-          school_id: user?.school_id || undefined,
-          class_id: selectedClass,
-          learning_area_id: selectedLA,
-          term: selectedTerm,
-          exam_type: selectedExamType,
-          academic_year: academicYear,
-          max_marks: 100,
-        },
-      }),
+        json: payload,
+      });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['term-exams'] });
       setShowCreate(false);
@@ -101,7 +104,11 @@ export function SBADashboardPage() {
       setSelectedLA('');
       toast.success('Term exam created');
     },
-    onError: () => toast.error('Failed to create term exam'),
+    onError: (err: any) => {
+      const msg = err?.message || 'Failed to create term exam';
+      console.error('Term exam creation error:', err);
+      toast.error(msg);
+    },
   });
 
   const deleteMutation = useMutation({
