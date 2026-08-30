@@ -26,6 +26,12 @@ interface FeatureRequest {
   user_has_voted: boolean;
 }
 
+interface School {
+  id: string;
+  name: string;
+  code: string;
+}
+
 const statusStyles: Record<string, string> = {
   open: 'bg-gray-100 text-gray-700',
   planned: 'bg-blue-100 text-blue-700',
@@ -104,7 +110,7 @@ export function RoadmapPage() {
   const [showSuggestionForm, setShowSuggestionForm] = useState(false);
 
   // Fetch schools for super admin
-  const { data: schools = [] } = useQuery({
+  const { data: schools = [] } = useQuery<School[]>({
     queryKey: ['super-admin-schools-list'],
     queryFn: () => apiFetch('/super-admin/schools?limit=200'),
     enabled: isSuperAdmin,

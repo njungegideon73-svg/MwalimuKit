@@ -4,6 +4,7 @@ import { Plus, ClipboardCheck, BarChart3, FileText, Trash2, ChevronRight } from 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api';
 import { getCurriculum } from '@/lib/curriculum';
+import { useAuthStore } from '@/lib/auth-store';
 import toast from 'react-hot-toast';
 import type { SchoolClass, LearningArea } from '@mwalimukit/types';
 
@@ -34,6 +35,7 @@ const TERMS = [
 
 export function SBADashboardPage() {
   const queryClient = useQueryClient();
+  const user = useAuthStore((s) => s.user);
   const currentYear = new Date().getFullYear().toString();
 
   const [showCreate, setShowCreate] = useState(false);
