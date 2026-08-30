@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 
 
 class TermExamIn(BaseModel):
+    school_id: str | None = None
     class_id: str
     learning_area_id: str
     term: int = Field(ge=1, le=3)

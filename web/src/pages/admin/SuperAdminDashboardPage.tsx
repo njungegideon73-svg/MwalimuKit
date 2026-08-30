@@ -1,6 +1,7 @@
-import { School, Users, GraduationCap, BookOpen, Shield } from 'lucide-react';
+import { School, Users, GraduationCap, BookOpen, Shield, Lightbulb } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api';
+import { Link } from 'react-router-dom';
 
 interface SystemStats {
   total_schools: number;
@@ -10,6 +11,17 @@ interface SystemStats {
   total_super_admins: number;
   total_learners: number;
   total_classes: number;
+}
+
+interface FeatureRequest {
+  id: string;
+  title: string;
+  description: string;
+  status: string;
+  vote_count: number;
+  created_by?: string | null;
+  created_at: string;
+  user_has_voted: boolean;
 }
 
 const stats = [
@@ -24,6 +36,11 @@ export function SuperAdminDashboardPage() {
   const { data, isLoading } = useQuery<SystemStats>({
     queryKey: ['super-admin-stats'],
     queryFn: () => apiFetch('/super-admin/stats'),
+  });
+
+  const { data: suggestions = [] } = useQuery<FeatureRequest[]>({
+    queryKey: ['super-admin-suggestions'],
+    queryFn: () => apiFetch('/admin/roadmap'),
   });
 
   if (isLoading) {
@@ -101,6 +118,36 @@ export function SuperAdminDashboardPage() {
             </div>
           </a>
         </div>
+      </div>
+
+      {/* Recent Suggestions */}
+      <div className="card">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+            <Lightbulb className="h-5 w-5 text-amber-500" />
+            Recent Suggestions
+          </h2>
+          <Link to="/roadmap" className="text-sm text-primary-600 hover:text-primary-700">
+            View all
+          </Link>
+        </div>
+        {suggestions.length === 0 ? (
+          <p className="text-sm text-gray-500">No suggestions yet.</p>
+        ) : (
+          <div className="space-y-3">
+            {suggestions.slice(0, 5).map((s) => (
+              <div key={s.id} className="flex items-start gap-3 p-3 rounded-lg border border-gray-100">
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-gray-900 text-sm">{s.title}</p>
+                  {s.description && (
+                    <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{s.description}</p>
+                  )}
+                </div>
+                <span className="text-xs text-gray-400">{new Date(s.created_at).toLocaleDateString()}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* System Info */}

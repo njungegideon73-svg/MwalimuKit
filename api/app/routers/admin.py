@@ -20,6 +20,7 @@ from app.models.learner import Learner
 from app.models.run import AssessmentRun
 from app.models.school_class import SchoolClass
 from app.models.score import Score
+from app.models.user import UserRole
 from app.schemas.classes import ActivityLogOut
 from app.schemas.roadmap import FeatureRequestIn, FeatureRequestOut
 
@@ -191,11 +192,16 @@ async def list_roadmap(
     user: CurrentUser,
     db: AsyncSession = Depends(get_db),
 ) -> list[FeatureRequestOut]:
-    rows = (
-        await db.execute(
-            select(FeatureRequest).order_by(FeatureRequest.vote_count.desc())
+    user_role = user.role if hasattr(user.role, "value") else str(user.role)
+    if user_role in (UserRole.super_admin.value, UserRole.school_admin.value):
+        stmt = select(FeatureRequest).order_by(FeatureRequest.vote_count.desc())
+    else:
+        stmt = (
+            select(FeatureRequest)
+            .where(FeatureRequest.created_by == user.id)
+            .order_by(FeatureRequest.vote_count.desc())
         )
-    ).scalars().all()
+    rows = (await db.execute(stmt)).scalars().all()
 
     user_vote_ids: set[UUID] = set()
     votes = (
@@ -212,6 +218,7 @@ async def list_roadmap(
             description=f.description,
             status=f.status,
             vote_count=f.vote_count,
+            created_by=str(f.created_by) if f.created_by else None,
             created_at=f.created_at.isoformat(),
             user_has_voted=f.id in user_vote_ids,
         )
@@ -229,6 +236,8 @@ async def create_feature_request(
         id=uuid4(),
         title=payload.title,
         description=payload.description,
+        created_by=user.id,
+        school_id=user.school_id,
     )
     db.add(fr)
     await db.commit()
@@ -239,6 +248,7 @@ async def create_feature_request(
         description=fr.description,
         status=fr.status,
         vote_count=fr.vote_count,
+        created_by=str(fr.created_by) if fr.created_by else None,
         created_at=fr.created_at.isoformat(),
         user_has_voted=False,
     )

@@ -38,6 +38,7 @@ async def list_news(
             content=n.content,
             category=n.category,
             is_active=n.is_active,
+            school_id=str(n.school_id) if n.school_id else None,
             created_by=str(n.created_by),
             created_at=n.created_at.isoformat(),
         )
@@ -51,13 +52,16 @@ async def create_news(
     user: SuperAdminUser,
     db: AsyncSession = Depends(get_db),
 ) -> NewsItemOut:
+    from uuid import UUID
+    school_id = UUID(payload.school_id) if payload.school_id else user.school_id
     n = NewsItem(
         id=uuid4(),
         title=payload.title,
         content=payload.content,
         category=payload.category,
+        is_active=payload.is_active,
         created_by=user.id,
-        school_id=user.school_id,
+        school_id=school_id,
     )
     db.add(n)
     await db.commit()
@@ -68,6 +72,7 @@ async def create_news(
         content=n.content,
         category=n.category,
         is_active=n.is_active,
+        school_id=str(n.school_id) if n.school_id else None,
         created_by=str(n.created_by),
         created_at=n.created_at.isoformat(),
     )

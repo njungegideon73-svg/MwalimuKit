@@ -1,6 +1,7 @@
 """Term exams – SBA management, marks entry, report cards, analytics."""
 from __future__ import annotations
 
+import logging
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -24,6 +25,8 @@ from app.schemas.term_exam import (
     TermExamIn,
     TermExamOut,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -159,9 +162,15 @@ async def create_term_exam(
     if la is None:
         raise HTTPException(status_code=404, detail="Learning area not found")
 
+    school_id = payload.school_id or str(user.school_id)
+    try:
+        school_uuid = UUID(school_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=f"Invalid school_id format: {exc.args[0]}")
+
     te = TermExam(
         id=uuid4(),
-        school_id=user.school_id,
+        school_id=school_uuid,
         class_id=class_uuid,
         learning_area_id=learning_area_uuid,
         term=payload.term,
@@ -170,7 +179,11 @@ async def create_term_exam(
         max_marks=payload.max_marks,
     )
     db.add(te)
-    await db.commit()
+    try:
+        await db.commit()
+    except Exception as exc:
+        logger.error("term_exam.create_failed", error=str(exc), exc_info=True)
+        raise HTTPException(status_code=422, detail=f"Failed to create term exam: {exc}") from exc
     await db.refresh(te)
 
     cls_row = (await db.execute(

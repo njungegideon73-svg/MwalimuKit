@@ -17,5 +17,6 @@ class FeatureRequestOut(BaseModel):
     description: str
     status: str
     vote_count: int
+    created_by: str | None = None
     created_at: str
     user_has_voted: bool = False

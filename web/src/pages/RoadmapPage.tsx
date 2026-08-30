@@ -11,6 +11,7 @@ interface NewsItem {
   content: string;
   category: string;
   is_active: boolean;
+  school_id?: string | null;
   created_by: string;
   created_at: string;
 }
@@ -21,6 +22,7 @@ interface FeatureRequest {
   description: string;
   status: 'open' | 'planned' | 'done';
   vote_count: number;
+  created_by?: string | null;
   user_has_voted: boolean;
 }
 
@@ -93,12 +95,20 @@ export function RoadmapPage() {
   const [newsTitle, setNewsTitle] = useState('');
   const [newsContent, setNewsContent] = useState('');
   const [newsCategory, setNewsCategory] = useState('news');
+  const [newsSchoolId, setNewsSchoolId] = useState('');
   const [showNewsForm, setShowNewsForm] = useState(false);
 
   // Suggestion state
   const [suggestionTitle, setSuggestionTitle] = useState('');
   const [suggestionDescription, setSuggestionDescription] = useState('');
   const [showSuggestionForm, setShowSuggestionForm] = useState(false);
+
+  // Fetch schools for super admin
+  const { data: schools = [] } = useQuery({
+    queryKey: ['super-admin-schools-list'],
+    queryFn: () => apiFetch('/super-admin/schools?limit=200'),
+    enabled: isSuperAdmin,
+  });
 
   // Fetch news
   const { data: newsItems = [], isLoading: loadingNews } = useQuery<NewsItem[]>({
@@ -112,6 +122,11 @@ export function RoadmapPage() {
     queryFn: () => apiFetch('/admin/roadmap'),
   });
 
+  // Filter suggestions based on role
+  const visibleSuggestions = isSuperAdmin
+    ? suggestions
+    : suggestions.filter(s => !s.created_by || s.created_by === user?.id);
+
   // News mutations (super admin only)
   const createNewsMutation = useMutation({
     mutationFn: () =>
@@ -121,6 +136,8 @@ export function RoadmapPage() {
           title: newsTitle.trim(),
           content: newsContent.trim(),
           category: newsCategory,
+          is_active: true,
+          school_id: newsSchoolId || undefined,
         },
       }),
     onSuccess: () => {
@@ -128,6 +145,7 @@ export function RoadmapPage() {
       setNewsTitle('');
       setNewsContent('');
       setNewsCategory('news');
+      setNewsSchoolId('');
       setShowNewsForm(false);
       toast.success('News item posted');
     },
@@ -223,6 +241,19 @@ export function RoadmapPage() {
                 </select>
               </div>
               <div>
+                <label className="label">Target School</label>
+                <select
+                  className="input"
+                  value={newsSchoolId}
+                  onChange={(e) => setNewsSchoolId(e.target.value)}
+                >
+                  <option value="">All Schools (Global)</option>
+                  {schools.map((s: any) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
                 <label className="label">Content</label>
                 <textarea
                   className="input"
@@ -278,17 +309,19 @@ export function RoadmapPage() {
             <Lightbulb className="h-5 w-5 text-amber-500" />
             Feature Suggestions
           </h2>
-          <button
-            onClick={() => setShowSuggestionForm(!showSuggestionForm)}
-            className="btn-secondary text-sm"
-          >
-            <Plus className="h-4 w-4" />
-            {showSuggestionForm ? 'Cancel' : 'Suggest Feature'}
-          </button>
+          {!isSuperAdmin && (
+            <button
+              onClick={() => setShowSuggestionForm(!showSuggestionForm)}
+              className="btn-secondary text-sm"
+            >
+              <Plus className="h-4 w-4" />
+              {showSuggestionForm ? 'Cancel' : 'Suggest Feature'}
+            </button>
+          )}
         </div>
 
         {/* Suggestion form */}
-        {showSuggestionForm && (
+        {!isSuperAdmin && showSuggestionForm && (
           <div className="card mb-4 border-amber-200 bg-amber-50/30">
             <h3 className="font-medium text-gray-900 mb-3">Suggest a Feature</h3>
             <div className="space-y-3">
@@ -330,14 +363,16 @@ export function RoadmapPage() {
               <div key={i} className="h-24 bg-gray-200 rounded-xl" />
             ))}
           </div>
-        ) : suggestions.length === 0 ? (
+        ) : visibleSuggestions.length === 0 ? (
           <div className="card text-center py-8">
             <Lightbulb className="h-10 w-10 text-gray-300 mx-auto mb-2" />
-            <p className="text-gray-500 text-sm">No suggestions yet. Be the first to suggest one!</p>
+            <p className="text-gray-500 text-sm">
+              {isSuperAdmin ? 'No suggestions yet.' : 'No suggestions yet. Be the first to suggest one!'}
+            </p>
           </div>
         ) : (
           <div className="space-y-3">
-            {suggestions.map((f) => (
+            {visibleSuggestions.map((f) => (
               <div key={f.id} className="card flex items-start gap-4">
                 <button
                   onClick={() => voteMutation.mutate(f.id)}
