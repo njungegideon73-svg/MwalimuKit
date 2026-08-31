@@ -233,14 +233,38 @@ export function SchoolClassesManagementPage() {
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Grade Level *
             </label>
-            <input
-              type="text"
+            <select
               required
               value={formData.grade_level}
               onChange={(e) => setFormData({ ...formData, grade_level: e.target.value })}
               className="input w-full"
-              placeholder="Enter grade level"
-            />
+            >
+              <option value="">Select grade level...</option>
+              <optgroup label="Pre-Primary">
+                <option value="PP1">PP1 (Pre-Primary 1)</option>
+                <option value="PP2">PP2 (Pre-Primary 2)</option>
+              </optgroup>
+              <optgroup label="Lower Primary (Grades 1-3)">
+                <option value="Grade 1">Grade 1</option>
+                <option value="Grade 2">Grade 2</option>
+                <option value="Grade 3">Grade 3</option>
+              </optgroup>
+              <optgroup label="Upper Primary (Grades 4-6)">
+                <option value="Grade 4">Grade 4</option>
+                <option value="Grade 5">Grade 5</option>
+                <option value="Grade 6">Grade 6</option>
+              </optgroup>
+              <optgroup label="Junior School (Grades 7-9)">
+                <option value="Grade 7">Grade 7</option>
+                <option value="Grade 8">Grade 8</option>
+                <option value="Grade 9">Grade 9</option>
+              </optgroup>
+              <optgroup label="Senior School (Grades 10-12)">
+                <option value="Grade 10">Grade 10</option>
+                <option value="Grade 11">Grade 11</option>
+                <option value="Grade 12">Grade 12</option>
+              </optgroup>
+            </select>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">

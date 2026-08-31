@@ -25,6 +25,7 @@ class CurriculumLevel(str, PyEnum):
       - Senior School (Grades 10-12): Ages 15-18
         (STEM, Social Sciences, Arts and Sports Science pathways)
     """
+    pre_primary = "pre_primary"
     lower_primary = "lower_primary"
     upper_primary = "upper_primary"
     jss = "jss"

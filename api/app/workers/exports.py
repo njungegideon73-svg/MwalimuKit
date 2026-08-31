@@ -617,11 +617,10 @@ async def _build_sba_report_card_pdf(session, payload: dict) -> dict:
     elements.append(Spacer(1, 0.5 * cm))
 
     grade_descriptors = [
-        "A (80-100%): Exceeding expectation",
-        "B (65-79%): Meeting expectation",
-        "C (50-64%): Approaching expectation",
-        "D (30-49%): Below expectation",
-        "E (0-29%): Far below expectation",
+        "EE (75-100%): Exceeding Expectations (7-8 points)",
+        "ME (41-74%): Meeting Expectations (5-6 points)",
+        "AE (21-40%): Approaching Expectations (3-4 points)",
+        "BE (0-20%): Below Expectations (1-2 points)",
     ]
     elements.append(Paragraph("<b>Grade Descriptors</b>", ParagraphStyle("Section", parent=body_style, fontSize=12, spaceAfter=4)))
     for desc in grade_descriptors:

@@ -80,9 +80,30 @@ export function ClassesPage() {
               <label className="label">Grade level</label>
               <select {...register('grade_level')} className="input">
                 <option value="">Select...</option>
-                {['PP1', 'PP2', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9'].map((g) => (
-                  <option key={g} value={g}>{g}</option>
-                ))}
+                <optgroup label="Pre-Primary">
+                  <option value="PP1">PP1 (Pre-Primary 1)</option>
+                  <option value="PP2">PP2 (Pre-Primary 2)</option>
+                </optgroup>
+                <optgroup label="Lower Primary (Grades 1-3)">
+                  <option value="Grade 1">Grade 1</option>
+                  <option value="Grade 2">Grade 2</option>
+                  <option value="Grade 3">Grade 3</option>
+                </optgroup>
+                <optgroup label="Upper Primary (Grades 4-6)">
+                  <option value="Grade 4">Grade 4</option>
+                  <option value="Grade 5">Grade 5</option>
+                  <option value="Grade 6">Grade 6</option>
+                </optgroup>
+                <optgroup label="Junior School (Grades 7-9)">
+                  <option value="Grade 7">Grade 7</option>
+                  <option value="Grade 8">Grade 8</option>
+                  <option value="Grade 9">Grade 9</option>
+                </optgroup>
+                <optgroup label="Senior School (Grades 10-12)">
+                  <option value="Grade 10">Grade 10</option>
+                  <option value="Grade 11">Grade 11</option>
+                  <option value="Grade 12">Grade 12</option>
+                </optgroup>
               </select>
               {errors.grade_level && <p className="mt-1 text-sm text-red-600">{errors.grade_level.message}</p>}
             </div>

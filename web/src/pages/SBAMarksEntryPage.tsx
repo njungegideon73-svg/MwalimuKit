@@ -112,7 +112,14 @@ export function SBAMarksEntryPage() {
         <p className="text-gray-500 mt-1">
           {exam.learning_area_name} — {exam.class_name} — Term {exam.term} ({exam.exam_type}) {exam.academic_year}
         </p>
-        <p className="text-sm text-gray-400 mt-1">Maximum marks: {maxMarks}</p>
+        <div className="flex items-center gap-2 mt-1">
+          <p className="text-sm text-gray-400">Maximum marks: {maxMarks}</p>
+          {maxMarks !== 100 && (
+            <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">
+              Marks will be converted to percentage for grading
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Save button */}
