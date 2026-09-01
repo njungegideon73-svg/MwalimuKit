@@ -112,7 +112,7 @@ class SchemePreviewItem(BaseModel):
     break_label: str | None
     strand_code: str | None
     sub_strand_code: str | None
-    topic: str | None
+    topic: str | None = None
     learning_outcomes: list[str] | None = None
     learning_experiences: list[str] | None = None
     key_inquiry_questions: list[str] | None = None

@@ -246,19 +246,13 @@ def preview_payload(
             "break_label": lesson.break_label,
             "strand_code": strand_code,
             "sub_strand_code": params.sub_strand_code,
+            "topic": lesson.content.topic if lesson.content and not lesson.is_break else None,
+            "learning_outcomes": lesson.content.learning_outcomes if lesson.content and not lesson.is_break else [],
+            "learning_experiences": lesson.content.learning_experiences if lesson.content and not lesson.is_break else [],
+            "key_inquiry_questions": lesson.content.key_inquiry_questions if lesson.content and not lesson.is_break else [],
+            "resources": lesson.content.resources if lesson.content and not lesson.is_break else [],
+            "assessment_methods": lesson.content.assessment_methods if lesson.content and not lesson.is_break else [],
             "notes": None,
         }
-        if lesson.content is not None and not lesson.is_break:
-            content = lesson.content
-            item.update(
-                {
-                    "topic": content.topic,
-                    "learning_outcomes": content.learning_outcomes,
-                    "learning_experiences": content.learning_experiences,
-                    "key_inquiry_questions": content.key_inquiry_questions,
-                    "resources": content.resources,
-                    "assessment_methods": content.assessment_methods,
-                }
-            )
         lesson_payloads.append(item)
     return {"scheme": scheme_out, "lessons": lesson_payloads}
