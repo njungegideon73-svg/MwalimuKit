@@ -23,6 +23,15 @@ const AssessmentDetailPage = lazy(() =>
 const AssessmentNewPage = lazy(() =>
   import('@/pages/AssessmentNewPage').then((m) => ({ default: m.AssessmentNewPage })),
 );
+const SchemesOfWorkPage = lazy(() =>
+  import('@/pages/SchemesOfWorkPage').then((m) => ({ default: m.SchemesOfWorkPage })),
+);
+const SchemeNewPage = lazy(() =>
+  import('@/pages/SchemeNewPage').then((m) => ({ default: m.SchemeNewPage })),
+);
+const SchemePreviewPage = lazy(() =>
+  import('@/pages/SchemePreviewPage').then((m) => ({ default: m.SchemePreviewPage })),
+);
 const ClassesPage = lazy(() => import('@/pages/ClassesPage').then((m) => ({ default: m.ClassesPage })));
 const ClassDetailPage = lazy(() => import('@/pages/ClassDetailPage').then((m) => ({ default: m.ClassDetailPage })));
 const ScoreEntryPage = lazy(() => import('@/pages/ScoreEntryPage').then((m) => ({ default: m.ScoreEntryPage })));
@@ -243,6 +252,9 @@ export default function App() {
                 <Route path="/assessments" element={<AssessmentsPage />} />
                 <Route path="/assessments/new" element={<AssessmentNewPage />} />
                 <Route path="/assessments/:id" element={<AssessmentDetailPage />} />
+                <Route path="/schemes" element={<SchemesOfWorkPage />} />
+                <Route path="/schemes/new" element={<SchemeNewPage />} />
+                <Route path="/schemes/:id/preview" element={<SchemePreviewPage />} />
                 <Route path="/classes" element={<ClassesPage />} />
                 <Route path="/classes/:id" element={<ClassDetailPage />} />
                 <Route path="/classes/:classId/scores/:assessmentId" element={<ScoreEntryPage />} />

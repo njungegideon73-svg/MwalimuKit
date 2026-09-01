@@ -20,6 +20,7 @@ class JobType(str, PyEnum):
     sba_report_card_pdf = "sba_report_card_pdf"
     class_summary_csv = "class_summary_csv"
     term_exam_class_csv = "term_exam_class_csv"
+    scheme_of_work_pdf = "scheme_of_work_pdf"
 
 
 class JobStatus(str, PyEnum):

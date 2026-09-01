@@ -14,12 +14,14 @@ import {
   School,
   GraduationCap,
   ClipboardCheck,
+  CalendarRange,
 } from 'lucide-react';
 import { useState } from 'react';
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard', roles: ['teacher', 'school_admin', 'super_admin'] },
   { to: '/assessments', icon: ClipboardList, label: 'Assessments', roles: ['teacher', 'school_admin', 'super_admin'] },
+  { to: '/schemes', icon: CalendarRange, label: 'Schemes of Work', roles: ['teacher', 'school_admin', 'super_admin'] },
   { to: '/classes', icon: Users, label: 'Classes', roles: ['teacher', 'school_admin', 'super_admin'] },
   { to: '/sba', icon: ClipboardCheck, label: 'SBA / Exams', roles: ['teacher', 'school_admin', 'super_admin'] },
   { to: '/admin', icon: Shield, label: 'School Dashboard', roles: ['school_admin', 'super_admin'] },

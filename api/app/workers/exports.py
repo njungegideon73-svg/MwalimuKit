@@ -12,7 +12,7 @@ except ImportError:
     HAS_DOCX = False
 
 from reportlab.lib import colors
-from reportlab.lib.pagesizes import A4
+from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
@@ -67,6 +67,8 @@ async def _process_export_job_async(job_id: UUID) -> None:
                 data, result = await _build_class_summary_csv(session, job.payload)
             elif job.type == "term_exam_class_csv":
                 data, result = await _build_term_exam_class_csv(session, job.payload)
+            elif job.type == "scheme_of_work_pdf":
+                data, result = await _build_scheme_of_work_pdf(session, job.payload)
             else:
                 raise ValueError(f"Unknown job type: {job.type}")
 
@@ -821,4 +823,141 @@ async def _build_term_exam_class_csv(session, payload: dict) -> dict:
     data = output.getvalue().encode("utf-8")
     filename = f"term_exam_{school_class.name.replace(' ', '_')}_{academic_year}.csv"
     result = _make_result(data, filename, "text/csv")
+    return data, result
+
+
+def _join_lines(items) -> str:
+    """Render a JSONB list into a compact <br/>-separated Paragraph string."""
+    lines = [str(x) for x in items or [] if str(x).strip()]
+    return "<br/>".join(lines) if lines else "-"
+
+
+async def _build_scheme_of_work_pdf(session, payload: dict) -> tuple[bytes, dict]:
+    """Render the CBMS-style scheme-of-work table as a landscape PDF."""
+    from app.models.curriculum import LearningArea
+    from app.models.school import School
+    from app.models.schemes_of_work import SchemeLesson, SchemeOfWork
+
+    scheme_id = UUID(payload["scheme_id"])
+    school_id = UUID(payload["school_id"])
+
+    scheme = (
+        await session.execute(
+            select(SchemeOfWork).where(
+                SchemeOfWork.id == scheme_id,
+                SchemeOfWork.school_id == school_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if scheme is None:
+        raise ValueError("Scheme of work not found")
+
+    school = await session.get(School, school_id)
+    school_name = school.name if school else "School"
+
+    la = (
+        await session.execute(select(LearningArea).where(LearningArea.code == scheme.learning_area_code))
+    ).scalar_one_or_none()
+    learning_area_name = la.name if la else scheme.learning_area_code
+
+    lessons = (
+        await session.execute(
+            select(SchemeLesson)
+            .where(SchemeLesson.scheme_id == scheme.id)
+            .order_by(SchemeLesson.week_number, SchemeLesson.lesson_number)
+        )
+    ).scalars().all()
+
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=landscape(A4),
+        leftMargin=1.2 * cm,
+        rightMargin=1.2 * cm,
+        topMargin=1.2 * cm,
+        bottomMargin=1.2 * cm,
+    )
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle("SOWTitle", parent=styles["Title"], fontSize=14, spaceAfter=4, alignment=1)
+    sub_style = ParagraphStyle("SOWSub", parent=styles["Normal"], fontSize=9, alignment=1, spaceAfter=2)
+    label_style = ParagraphStyle("SOWLabel", parent=styles["Normal"], fontSize=9, spaceAfter=2)
+    cell_style = ParagraphStyle("SOWCell", parent=styles["Normal"], fontSize=7.5, leading=9.5)
+    header_style = ParagraphStyle("SOWHeader", parent=styles["Normal"], fontSize=8, leading=10, textColor=colors.white)
+
+    elements = []
+    elements.append(Paragraph(school_name, title_style))
+    elements.append(Paragraph(
+        f"SCHEME OF WORK — {learning_area_name} — Grade {scheme.grade}",
+        sub_style,
+    ))
+    elements.append(Paragraph(
+        f"Term {scheme.term_number} · {scheme.academic_year} · {scheme.lessons_per_week} lessons/week · "
+        f"Sub-Strand: {scheme.sub_strand_code}",
+        sub_style,
+    ))
+    elements.append(Spacer(1, 0.3 * cm))
+
+    header = [
+        Paragraph("<b>Wk</b>", header_style),
+        Paragraph("<b>Lesson</b>", header_style),
+        Paragraph("<b>Strand</b>", header_style),
+        Paragraph("<b>Sub-Strand</b>", header_style),
+        Paragraph("<b>Specific Learning Outcomes</b>", header_style),
+        Paragraph("<b>Key Inquiry Question(s)</b>", header_style),
+        Paragraph("<b>Learning Experiences</b>", header_style),
+        Paragraph("<b>Learning Resources</b>", header_style),
+        Paragraph("<b>Assessment Methods</b>", header_style),
+        Paragraph("<b>Reflection</b>", header_style),
+    ]
+    table_data = [header]
+
+    for lesson in lessons:
+        if lesson.is_break:
+            row_style = ParagraphStyle("Break", parent=cell_style, textColor=colors.HexColor("#7F8C8D"))
+            note = lesson.break_label or "Mid-Term Break / Exam Week"
+            table_data.append([
+                Paragraph(str(lesson.week_number), row_style),
+                Paragraph("—", row_style),
+                Paragraph(note, row_style),
+                Paragraph("", row_style),
+                Paragraph("", row_style),
+                Paragraph("", row_style),
+                Paragraph("", row_style),
+                Paragraph("", row_style),
+                Paragraph("", row_style),
+                Paragraph("", row_style),
+            ])
+            continue
+        table_data.append([
+            Paragraph(str(lesson.week_number), cell_style),
+            Paragraph(str(lesson.lesson_number), cell_style),
+            Paragraph(lesson.strand_code or "-", cell_style),
+            Paragraph(lesson.sub_strand_code or "-", cell_style),
+            Paragraph(_join_lines(lesson.learning_outcomes), cell_style),
+            Paragraph(_join_lines(lesson.key_inquiry_questions), cell_style),
+            Paragraph(_join_lines(lesson.learning_experiences), cell_style),
+            Paragraph(_join_lines(lesson.resources), cell_style),
+            Paragraph(_join_lines(lesson.assessment_methods), cell_style),
+            Paragraph("", cell_style),
+        ])
+
+    col_widths = [1.0 * cm, 1.2 * cm, 2.2 * cm, 2.4 * cm, 5.6 * cm, 4.4 * cm, 5.6 * cm, 4.0 * cm, 3.8 * cm, 1.8 * cm]
+    table = Table(table_data, colWidths=col_widths, repeatRows=1)
+    table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2C3E50")),
+        ("GRID", (0, 0), (-1, -1), 0.4, colors.grey),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.whitesmoke, colors.white]),
+        ("LEFTPADDING", (0, 0), (-1, -1), 3),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 3),
+        ("TOPPADDING", (0, 0), (-1, -1), 3),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+    ]))
+    elements.append(table)
+
+    doc.build(elements)
+    buffer.seek(0)
+    data = buffer.read()
+    filename = f"scheme_of_work_{scheme.name.replace(' ', '_').lower()}_term{scheme.term_number}.pdf"
+    result = _make_result(data, filename, "application/pdf")
     return data, result

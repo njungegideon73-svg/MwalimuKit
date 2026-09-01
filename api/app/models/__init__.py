@@ -15,10 +15,12 @@ from app.models.subscription import Subscription
 from app.models.news_item import NewsItem
 from app.models.term_exam import TermExam
 from app.models.learner_exam_score import LearnerExamScore
+from app.models.schemes_of_work import LessonContent, SchemeOfWork, SchemeLesson
 
 __all__ = [
     "School", "User", "LearningArea", "Strand", "SubStrand", "Assessment",
     "SchoolClass", "Learner", "AssessmentRun", "Score", "FeatureFlag",
     "FeatureRequest", "FeatureVote", "PromptHistory", "Subscription", "NewsItem",
     "TermExam", "LearnerExamScore",
+    "LessonContent", "SchemeOfWork", "SchemeLesson",
 ]

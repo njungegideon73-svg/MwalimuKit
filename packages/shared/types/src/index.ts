@@ -235,7 +235,8 @@ export type JobType =
   | 'report_card_pdf'
   | 'sba_report_card_pdf'
   | 'class_summary_csv'
-  | 'term_exam_class_csv';
+  | 'term_exam_class_csv'
+  | 'scheme_of_work_pdf';
 
 export type JobStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
 
@@ -249,4 +250,106 @@ export interface ExportJob {
   idempotency_key: string | null;
   created_at: string;
   updated_at: string;
+}
+
+// ---------- Schemes of Work ----------
+
+export type CalendarInterruptionType =
+  | 'mid_term_break'
+  | 'exam_week'
+  | 'public_holiday'
+  | 'school_activity'
+  | 'other';
+
+export interface CalendarInterruption {
+  week_number: number;
+  interruption_type: CalendarInterruptionType;
+  label: string;
+}
+
+export interface SchemeOfWork {
+  id: ID;
+  name: string;
+  sub_strand_code: string;
+  grade: string;
+  learning_area_code: string;
+  academic_year: string;
+  term_number: 1 | 2 | 3;
+  lessons_per_week: number;
+  total_weeks: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SchemeLesson {
+  id: ID;
+  scheme_id: ID;
+  week_number: number;
+  lesson_number: number;
+  content_id: ID | null;
+  is_break: boolean;
+  break_label: string | null;
+  strand_code: string | null;
+  sub_strand_code: string | null;
+  topic: string | null;
+  learning_outcomes: string[];
+  learning_experiences: string[];
+  key_inquiry_questions: string[];
+  resources: string[];
+  assessment_methods: string[];
+  notes: string | null;
+}
+
+export interface SchemeOfWorkDetail {
+  scheme: SchemeOfWork;
+  lessons: SchemeLesson[];
+}
+
+export interface SchemeOfWorkCreate {
+  name: string;
+  sub_strand_code: string;
+  grade: string;
+  learning_area_code: string;
+  academic_year: string;
+  term_number: 1 | 2 | 3;
+  lessons_per_week: number;
+  total_weeks: number;
+  calendar_interruptions: CalendarInterruption[];
+}
+
+export interface SchemePreviewItem {
+  week_number: number;
+  lesson_number: number;
+  lesson_sequence: number | null;
+  is_break: boolean;
+  break_label: string | null;
+  strand_code: string | null;
+  sub_strand_code: string | null;
+  topic: string | null;
+  learning_outcomes: string[] | null;
+  learning_experiences: string[] | null;
+  key_inquiry_questions: string[] | null;
+  resources: string[] | null;
+  assessment_methods: string[] | null;
+  notes: string | null;
+}
+
+export interface SchemePreviewResponse {
+  scheme: SchemeOfWork;
+  lessons: SchemePreviewItem[];
+}
+
+export interface LessonContent {
+  id: ID;
+  sub_strand_code: string;
+  term_number: number;
+  sequence_order: number;
+  topic: string;
+  learning_outcomes: string[];
+  learning_experiences: string[];
+  key_inquiry_questions: string[];
+  resources: string[];
+  assessment_methods: string[];
+  value_signs: string[] | null;
+  core_competences: string[] | null;
 }

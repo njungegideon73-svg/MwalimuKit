@@ -20,7 +20,7 @@ from app.core.tenant import TenantContextMiddleware
 from app.routers import (
     admin, assessments, auth, billing, classes, curriculum, feature_flags,
     health, history, jobs, learners, news, reports, runs, scores, schools,
-    super_admin, school_admin, term_exams,
+    super_admin, school_admin, term_exams, schemes_of_work,
 )
 
 _DEFAULT_SECRET = "dev-secret-change-me"
@@ -79,6 +79,7 @@ def create_app() -> FastAPI:
     app.include_router(billing.router, prefix="/api/v1/billing", tags=["billing"])
     app.include_router(admin.router, prefix="/api/v1/admin", tags=["admin"])
     app.include_router(reports.router, prefix="/api/v1/reports", tags=["reports"])
+    app.include_router(schemes_of_work.router, prefix="/api/v1/schemes", tags=["schemes-of-work"])
     app.include_router(news.router, prefix="/api/v1/news", tags=["news"])
     app.include_router(term_exams.router, prefix="/api/v1/term-exams", tags=["term-exams"])
     app.include_router(super_admin.router, prefix="/api/v1/super-admin", tags=["super-admin"])
