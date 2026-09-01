@@ -94,7 +94,15 @@ export async function apiFetch<T>(path: string, opts: FetchOptions = {}): Promis
   }
 
   if (!res.ok) {
-    const text = await res.text();
+    let text = await res.text();
+    try {
+      const json = JSON.parse(text);
+      if (typeof json.detail === 'string') {
+        text = json.detail;
+      }
+    } catch {
+      // Not JSON — keep raw text.
+    }
     throw new ApiError(res.status, text);
   }
 

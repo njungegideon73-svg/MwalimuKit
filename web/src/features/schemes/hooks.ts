@@ -47,7 +47,7 @@ export function useCreateScheme(onSuccess?: (scheme: SchemeOfWork) => void) {
       queryClient.invalidateQueries({ queryKey: ['schemes'] });
       onSuccess?.(scheme);
     },
-    onError: () => toast.error('Failed to generate scheme of work'),
+    onError: (err: Error) => toast.error(err.message || 'Failed to generate scheme of work'),
   });
 }
 

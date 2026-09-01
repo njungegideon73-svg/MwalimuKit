@@ -88,7 +88,7 @@ async def _generate_lessons(
 
     if not blocks:
         raise HTTPException(
-            status_code=404,
+            status_code=409,
             detail=(
                 "No content-bank entries for the selected sub-strand/term. "
                 "Add Lesson Content entries before generating a scheme."

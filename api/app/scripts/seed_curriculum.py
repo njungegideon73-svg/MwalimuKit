@@ -390,92 +390,57 @@ async def seed_demo_school(db: AsyncSession) -> None:
     print("Demo school created: code=DEMO01, teacher=teacher@demo.mwalimukit.go.ke / password123")
 
 
+def _generate_topic(sub_strand_name: str, term: int, seq: int) -> str:
+    """Return a plausible CBC topic title for a sub-strand/term/sequence."""
+    prefixes = {
+        1: ["Introduction to", "Getting started with", "Exploring", "Understanding the basics of"],
+        2: ["Developing skills in", "Building on", "Advancing through", "Deepening knowledge of"],
+        3: ["Mastering", "Consolidating", "Reviewing and applying", "Extending"],
+    }
+    return f"{prefixes[term][seq - 1]} {sub_strand_name}"
+
+
+def _generate_outcomes(topic: str) -> list[str]:
+    return [f"Explain key concepts related to {topic}", f"Apply skills learned in {topic} to real-life situations"]
+
+
+def _generate_experiences(topic: str) -> list[str]:
+    return [f"Participate in a guided activity on {topic}", f"Work in groups to solve problems related to {topic}"]
+
+
+def _generate_questions(topic: str) -> list[str]:
+    return [f"Why is {topic} important in daily life?", f"How can we use {topic} to solve community problems?"]
+
+
 def _sample_lesson_content() -> list[dict]:
     """Curated content-bank entries to exercise schemes of work.
 
-    These are hand-authored CBC-style units with Mentor / KLB coursebook
-    citations ("Title — pg. N").  Keyed by sub_strand_code -> per-term
-    sequence.  Resources are dicts so the ``_as_str_list`` citation
-    rendering ("Title — pg. 121") is exercised on the frontend too.
+    Generates sample entries for every sub-strand in the curriculum
+    across all three terms so teachers can generate schemes immediately
+    without first populating the content bank manually.
     """
-    return [
-        # Grade 4 (upper primary) Mathematics — Fractions
-        {"sub_strand_code": "UP-MATH-FRA-1.1", "term_number": 1, "sequence_order": 1,
-         "topic": "Proper and improper fractions",
-         "learning_outcomes": ["Identify proper and improper fractions", "Name the numerator and denominator of a fraction"],
-         "learning_experiences": ["Use fraction cards to sort fractions into proper and improper groups", "Draw and shade fraction diagrams to show parts of a whole"],
-         "key_inquiry_questions": ["What makes a fraction 'proper' or 'improper'?", "Where do we see fractions in home and school life?"],
-         "resources": ["Mentor Mathematics Learner's Book pg. 34", "Fraction wall chart"],
-         "assessment_methods": ["Observation of fraction sorting", "Oral questioning on numerator and denominator"],
-         "value_signs": ["Accuracy", "Co-operation"], "core_competences": ["Critical thinking", "Communication and collaboration"]},
-        {"sub_strand_code": "UP-MATH-FRA-1.1", "term_number": 1, "sequence_order": 2,
-         "topic": "Equivalent fractions",
-         "learning_outcomes": ["Recognise equivalent fractions", "Find equivalent fractions by multiplying or dividing"],
-         "learning_experiences": ["Fold paper strips to model equivalent fractions", "Play a matching game pairing equivalent fractions"],
-         "key_inquiry_questions": ["How can different fractions show the same amount?"],
-         "resources": ["Mentor Mathematics Learner's Book pg. 38", "Paper strips and fraction sets"],
-         "assessment_methods": ["Written exercise on equivalent fractions", "Peer checking of matched pairs"],
-         "value_signs": ["Persistence"], "core_competences": ["Creativity and imagination"]},
-        {"sub_strand_code": "UP-MATH-FRA-1.2", "term_number": 1, "sequence_order": 1,
-         "topic": "Addition and subtraction of fractions",
-         "learning_outcomes": ["Add and subtract fractions with like denominators", "Simplify answers where possible"],
-         "learning_experiences": ["Use fraction bars to add fractions visually", "Solve word problems involving fraction addition"],
-         "key_inquiry_questions": ["Why do the denominators stay the same when adding like fractions?"],
-         "resources": ["Mentor Mathematics Learner's Book pg. 42"],
-         "assessment_methods": ["Quick quiz on fraction arithmetic", "Word-problem worksheet"],
-         "value_signs": ["Neatness"], "core_competences": ["Problem solving"]},
-        # Grade 7 (JSS) Mathematics — Integers
-        {"sub_strand_code": "JSS-MATH-NUM-1.1", "term_number": 1, "sequence_order": 1,
-         "topic": "Integers on a number line",
-         "learning_outcomes": ["Locate integers on a number line", "Order and compare integers"],
-         "learning_experiences": ["Walk a number line on the classroom floor", "Order temperature readings on a thermometer"],
-         "key_inquiry_questions": ["What do negative numbers mean in real situations like temperature and debt?"],
-         "resources": ["KLB Top Scholar Mathematics Grade 7 pg. 12", "Number-line floor tape"],
-         "assessment_methods": ["Observation of number-line walks", "Ordering exercise"],
-         "value_signs": ["Accuracy"], "core_competences": ["Numeracy"]},
-        {"sub_strand_code": "JSS-MATH-NUM-1.1", "term_number": 1, "sequence_order": 2,
-         "topic": "Operations on integers",
-         "learning_outcomes": ["Add and subtract integers", "Multiply and divide integers using the sign rules"],
-         "learning_experiences": ["Use counters to model integer addition and subtraction", "Derive the sign rules through number-line jumps"],
-         "key_inquiry_questions": ["How do we know the sign of the result when multiplying integers?"],
-         "resources": ["KLB Top Scholar Mathematics Grade 7 pg. 18", "Two-colour counters"],
-         "assessment_methods": ["Speed drill on integer operations", "End-of-lesson quiz"],
-         "value_signs": ["Self-drive"], "core_competences": ["Critical thinking"]},
-        # Grade 4 (upper primary) Science — Living Things
-        {"sub_strand_code": "UP-SCI-LIV-1.1", "term_number": 1, "sequence_order": 1,
-         "topic": "Classification of living things",
-         "learning_outcomes": ["Group living things into plants and animals", "Give examples under each group"],
-         "learning_experiences": ["Collect and sort pictures of living things", "Walk around the school compound to observe living things"],
-         "key_inquiry_questions": ["What features help us tell a plant from an animal?"],
-         "resources": ["Mentor Science Learner's Book pg. 20", "Picture cards of living things"],
-         "assessment_methods": ["Sorting activity", "Oral presentation of groups"],
-         "value_signs": ["Respect for life"], "core_competences": ["Critical thinking"]},
-        {"sub_strand_code": "UP-SCI-LIV-1.2", "term_number": 1, "sequence_order": 1,
-         "topic": "The human digestive system",
-         "learning_outcomes": ["Name the main parts of the digestive system", "Describe the journey of food through the body"],
-         "learning_experiences": ["Trace the digestive path on a labelled chart", "Role-play the digestive organs in order"],
-         "key_inquiry_questions": ["What happens to food after we swallow it?"],
-         "resources": ["Mentor Science Learner's Book pg. 29", "Digestive system wall chart"],
-         "assessment_methods": ["Labelling worksheet", "Peer explanation of the food journey"],
-         "value_signs": ["Neatness"], "core_competences": ["Digital literacy"]},
-        # Grade 1 (lower primary) Mathematics — Counting
-        {"sub_strand_code": "LP-MATH-NUM-1.1", "term_number": 1, "sequence_order": 1,
-         "topic": "Counting objects from 0 to 20",
-         "learning_outcomes": ["Count objects up to 20", "Match numbers to sets of objects"],
-         "learning_experiences": ["Count bottle tops in the learners' environment", "Sing counting songs while pointing at a number chart"],
-         "key_inquiry_questions": ["How many things can we count in our classroom?"],
-         "resources": ["KLB Visionary Mathematics Grade 1 pg. 8", "Counters and number charts"],
-         "assessment_methods": ["One-to-one counting check", "Matching sets to numerals"],
-         "value_signs": ["Patience"], "core_competences": ["Numeracy"]},
-        {"sub_strand_code": "LP-MATH-NUM-1.1", "term_number": 1, "sequence_order": 2,
-         "topic": "Reading and writing numbers 0 to 20",
-         "learning_outcomes": ["Read numerals from 0 to 20", "Write numerals and number words clearly"],
-         "learning_experiences": ["Trace and write numbers in sand trays", "Read number cards aloud in order"],
-         "key_inquiry_questions": ["How are number words different from number symbols?"],
-         "resources": ["KLB Visionary Mathematics Grade 1 pg. 11", "Sand trays and number cards"],
-         "assessment_methods": ["Written number-writing exercise", "Reading aloud of number cards"],
-         "value_signs": ["Neatness"], "core_competences": ["Communication and collaboration"]},
-    ]
+    catalogue = _load_catalogue_json()
+    entries: list[dict] = []
+    sub_strands = {row["code"]: row["name"] for row in catalogue["sub_strands"]}
+
+    for code, name in sub_strands.items():
+        for term in (1, 2, 3):
+            for seq in (1, 2):
+                topic = _generate_topic(name, term, seq)
+                entries.append({
+                    "sub_strand_code": code,
+                    "term_number": term,
+                    "sequence_order": seq,
+                    "topic": topic,
+                    "learning_outcomes": _generate_outcomes(topic),
+                    "learning_experiences": _generate_experiences(topic),
+                    "key_inquiry_questions": _generate_questions(topic),
+                    "resources": [f"Coursebook pg. {term * 10 + seq}", "Teacher guide"],
+                    "assessment_methods": ["Written exercise", "Oral questioning"],
+                    "value_signs": ["Responsibility", "Co-operation"],
+                    "core_competences": ["Critical thinking", "Communication and collaboration"],
+                })
+    return entries
 
 
 async def seed_lesson_content(db: AsyncSession) -> None:
