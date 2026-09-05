@@ -471,11 +471,13 @@ async def seed_lesson_content(db: AsyncSession) -> None:
 
 async def main() -> None:
     env = os.environ.get("API_ENV", "development")
+    if env == "production":
+        print("Skipping curriculum seed in production.")
+        return
     async with SessionLocal() as db:
         await upsert_all(db)
         await seed_lesson_content(db)
-        if env != "production":
-            await seed_demo_school(db)
+        await seed_demo_school(db)
     # Invalidate the curriculum catalogue cache since data changed.
     await invalidate_catalogue_cache()
     print("Seeding complete.")
