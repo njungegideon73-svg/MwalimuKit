@@ -8,9 +8,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.db import get_db
 from app.core.deps import CurrentUser, SchoolAdminUser
 from app.models.curriculum import LearningArea
+from app.models.learner import Learner
 from app.models.school_class import SchoolClass
 from app.models.user import UserRole
-from app.schemas.classes import ClassIn, ClassOut
+from app.schemas.classes import ClassIn, ClassOut, LearnerOut
 from app.utils.activity_logger import log_activity
 
 
@@ -113,6 +114,57 @@ async def get_class(class_id: UUID, user: CurrentUser, db: AsyncSession = Depend
     if c is None:
         raise HTTPException(status_code=404, detail="Class not found")
     return await _to_out_async(c, db)
+
+
+@router.get("/{class_id}/learners", response_model=list[LearnerOut])
+async def list_class_learners(
+    class_id: UUID,
+    user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> list[LearnerOut]:
+    user_role = user.role if hasattr(user.role, "value") else str(user.role)
+    if user_role in (UserRole.school_admin.value, UserRole.super_admin.value):
+        c = (
+            await db.execute(
+                select(SchoolClass).where(
+                    SchoolClass.id == class_id,
+                    SchoolClass.school_id == user.school_id,
+                    SchoolClass.deleted_at.is_(None),
+                )
+            )
+        ).scalar_one_or_none()
+    else:
+        c = (
+            await db.execute(
+                select(SchoolClass).where(
+                    SchoolClass.id == class_id,
+                    SchoolClass.teacher_id == user.id,
+                    SchoolClass.deleted_at.is_(None),
+                )
+            )
+        ).scalar_one_or_none()
+    if c is None:
+        raise HTTPException(status_code=404, detail="Class not found")
+
+    rows = (
+        await db.execute(
+            select(Learner)
+            .where(Learner.class_id == class_id, Learner.deleted_at.is_(None))
+            .order_by(Learner.full_name)
+        )
+    ).scalars().all()
+    return [
+        LearnerOut(
+            id=l.id,
+            school_id=l.school_id,
+            class_id=l.class_id,
+            full_name=l.full_name,
+            admission_no=l.admission_no,
+            gender=l.gender,
+            deleted_at=l.deleted_at.isoformat() if l.deleted_at else None,
+        )
+        for l in rows
+    ]
 
 
 async def _resolve_la_codes_from_ids(

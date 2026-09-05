@@ -1,4 +1,4 @@
-import { apiFetch } from '@/lib/api';
+import { apiFetch, API_BASE } from '@/lib/api';
 import type { AssessmentRun } from '@mwalimukit/types';
 
 function getAuthTokens(): { access: string | null } {
@@ -24,7 +24,7 @@ async function pollJob(jobId: string, onProgress?: (status: string) => void): Pr
   const intervalMs = 2000;
 
   for (let i = 0; i < maxAttempts; i++) {
-    const res = await fetch(`/api/v1/jobs/${jobId}`, {
+    const res = await fetch(`${API_BASE}/jobs/${jobId}`, {
       headers: { Authorization: `Bearer ${access ?? ''}` },
     });
     if (!res.ok) throw new Error('Failed to poll job status');
@@ -42,14 +42,14 @@ export async function fetchLearnerReportCard(
   learnerId: string,
 ): Promise<Blob> {
   const { access } = getAuthTokens();
-  const res = await fetch(`/api/v1/jobs/reports/learner/${learnerId}/report-card?run_id=${runId}`, {
+  const res = await fetch(`${API_BASE}/jobs/reports/learner/${learnerId}/report-card?run_id=${runId}`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${access ?? ''}` },
   });
   if (!res.ok) throw new Error('Failed to start report card export');
   const job: ExportJob = await res.json();
   const completed = await pollJob(job.id);
-  const downloadRes = await fetch(`/api/v1/jobs/${completed.id}/download`, {
+  const downloadRes = await fetch(`${API_BASE}/jobs/${completed.id}/download`, {
     headers: { Authorization: `Bearer ${access ?? ''}` },
   });
   if (!downloadRes.ok) throw new Error('Failed to download report card');
@@ -61,14 +61,14 @@ export async function fetchClassSummaryCsv(
   runId: string,
 ): Promise<string> {
   const { access } = getAuthTokens();
-  const res = await fetch(`/api/v1/jobs/reports/class/${classId}/summary-csv?run_id=${runId}`, {
+  const res = await fetch(`${API_BASE}/jobs/reports/class/${classId}/summary-csv?run_id=${runId}`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${access ?? ''}` },
   });
   if (!res.ok) throw new Error('Failed to start CSV export');
   const job: ExportJob = await res.json();
   const completed = await pollJob(job.id);
-  const downloadRes = await fetch(`/api/v1/jobs/${completed.id}/download`, {
+  const downloadRes = await fetch(`${API_BASE}/jobs/${completed.id}/download`, {
     headers: { Authorization: `Bearer ${access ?? ''}` },
   });
   if (!downloadRes.ok) throw new Error('Failed to download CSV');
@@ -91,14 +91,14 @@ export async function fetchSbaReportCard(params: {
     ...(params.classTeacherRemarks ? { class_teacher_remarks: params.classTeacherRemarks } : {}),
     ...(params.principalRemarks ? { principal_remarks: params.principalRemarks } : {}),
   }).toString();
-  const res = await fetch(`/api/v1/jobs/reports/report-card/${params.learnerId}?${qs}`, {
+  const res = await fetch(`${API_BASE}/jobs/reports/report-card/${params.learnerId}?${qs}`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${access ?? ''}` },
   });
   if (!res.ok) throw new Error('Failed to start SBA report card export');
   const job: ExportJob = await res.json();
   const completed = await pollJob(job.id);
-  const downloadRes = await fetch(`/api/v1/jobs/${completed.id}/download`, {
+  const downloadRes = await fetch(`${API_BASE}/jobs/${completed.id}/download`, {
     headers: { Authorization: `Bearer ${access ?? ''}` },
   });
   if (!downloadRes.ok) throw new Error('Failed to download SBA report card');

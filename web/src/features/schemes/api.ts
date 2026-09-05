@@ -1,4 +1,4 @@
-import { apiFetch } from '@/lib/api';
+import { apiFetch, API_BASE } from '@/lib/api';
 import type {
   LessonContent,
   SchemeLesson,
@@ -71,7 +71,7 @@ async function pollJob(jobId: string, onProgress?: (status: string) => void): Pr
   const intervalMs = 2000;
 
   for (let i = 0; i < maxAttempts; i++) {
-    const res = await fetch(`/api/v1/jobs/${jobId}`, {
+    const res = await fetch(`${API_BASE}/jobs/${jobId}`, {
       headers: { Authorization: `Bearer ${access ?? ''}` },
     });
     if (!res.ok) throw new Error('Failed to poll job status');
@@ -89,14 +89,14 @@ export async function exportSchemePdf(
   onProgress?: (status: string) => void,
 ): Promise<Blob> {
   const { access } = getAuthTokens();
-  const res = await fetch(`/api/v1/schemes/${schemeId}/export/pdf`, {
+  const res = await fetch(`${API_BASE}/schemes/${schemeId}/export/pdf`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${access ?? ''}` },
   });
   if (!res.ok) throw new Error('Failed to start PDF export');
   const job: ExportJob = await res.json();
   const completed = await pollJob(job.id, onProgress);
-  const downloadRes = await fetch(`/api/v1/jobs/${completed.id}/download`, {
+  const downloadRes = await fetch(`${API_BASE}/jobs/${completed.id}/download`, {
     headers: { Authorization: `Bearer ${access ?? ''}` },
   });
   if (!downloadRes.ok) throw new Error('Failed to download PDF');

@@ -1,4 +1,4 @@
-import { apiFetch } from '@/lib/api';
+import { apiFetch, API_BASE } from '@/lib/api';
 import type { Assessment } from '@mwalimukit/types';
 
 export async function fetchAssessment(id: string): Promise<Assessment> {
@@ -78,7 +78,7 @@ async function pollJob(jobId: string, onProgress?: (status: string) => void): Pr
   const intervalMs = 2000;
 
   for (let i = 0; i < maxAttempts; i++) {
-    const res = await fetch(`/api/v1/jobs/${jobId}`, {
+    const res = await fetch(`${API_BASE}/jobs/${jobId}`, {
       headers: { Authorization: `Bearer ${access ?? ''}` },
     });
     if (!res.ok) throw new Error('Failed to poll job status');
@@ -93,14 +93,14 @@ async function pollJob(jobId: string, onProgress?: (status: string) => void): Pr
 
 export async function exportAssessmentPdf(id: string, mode: 'questions' | 'answer-key' = 'questions'): Promise<Blob> {
   const { access } = getAuthTokens();
-  const res = await fetch(`/api/v1/jobs/assessments/${id}/export/pdf?mode=${mode}`, {
+  const res = await fetch(`${API_BASE}/jobs/assessments/${id}/export/pdf?mode=${mode}`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${access ?? ''}` },
   });
   if (!res.ok) throw new Error('Failed to start PDF export');
   const job: ExportJob = await res.json();
   const completed = await pollJob(job.id);
-  const downloadRes = await fetch(`/api/v1/jobs/${completed.id}/download`, {
+  const downloadRes = await fetch(`${API_BASE}/jobs/${completed.id}/download`, {
     headers: { Authorization: `Bearer ${access ?? ''}` },
   });
   if (!downloadRes.ok) throw new Error('Failed to download PDF');
@@ -109,14 +109,14 @@ export async function exportAssessmentPdf(id: string, mode: 'questions' | 'answe
 
 export async function exportAssessmentDocx(id: string, mode: 'questions' | 'answer-key' = 'questions'): Promise<Blob> {
   const { access } = getAuthTokens();
-  const res = await fetch(`/api/v1/jobs/assessments/${id}/export/docx?mode=${mode}`, {
+  const res = await fetch(`${API_BASE}/jobs/assessments/${id}/export/docx?mode=${mode}`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${access ?? ''}` },
   });
   if (!res.ok) throw new Error('Failed to start DOCX export');
   const job: ExportJob = await res.json();
   const completed = await pollJob(job.id);
-  const downloadRes = await fetch(`/api/v1/jobs/${completed.id}/download`, {
+  const downloadRes = await fetch(`${API_BASE}/jobs/${completed.id}/download`, {
     headers: { Authorization: `Bearer ${access ?? ''}` },
   });
   if (!downloadRes.ok) throw new Error('Failed to download DOCX');
