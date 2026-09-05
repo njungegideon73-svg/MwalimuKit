@@ -1,4 +1,4 @@
-import { apiFetch, API_BASE } from '@/lib/api';
+import { apiFetch, API_BASE, getTokens } from '@/lib/api';
 import type {
   LessonContent,
   SchemeLesson,
@@ -48,15 +48,6 @@ export async function fetchLessonContent(
   return apiFetch<LessonContent[]>(`/schemes/content/${subStrandCode}${q}`);
 }
 
-function getAuthTokens(): { access: string | null } {
-  try {
-    const r = localStorage.getItem('mk_auth');
-    return r ? JSON.parse(r) : { access: null };
-  } catch {
-    return { access: null };
-  }
-}
-
 export interface ExportJob {
   id: string;
   type: string;
@@ -66,16 +57,11 @@ export interface ExportJob {
 }
 
 async function pollJob(jobId: string, onProgress?: (status: string) => void): Promise<ExportJob> {
-  const { access } = getAuthTokens();
   const maxAttempts = 90;
   const intervalMs = 2000;
 
   for (let i = 0; i < maxAttempts; i++) {
-    const res = await fetch(`${API_BASE}/jobs/${jobId}`, {
-      headers: { Authorization: `Bearer ${access ?? ''}` },
-    });
-    if (!res.ok) throw new Error('Failed to poll job status');
-    const job: ExportJob = await res.json();
+    const job = await apiFetch<ExportJob>(`/jobs/${jobId}`);
     onProgress?.(job.status);
     if (job.status === 'completed') return job;
     if (job.status === 'failed') throw new Error(job.error || 'Export failed');
@@ -88,14 +74,11 @@ export async function exportSchemePdf(
   schemeId: string,
   onProgress?: (status: string) => void,
 ): Promise<Blob> {
-  const { access } = getAuthTokens();
-  const res = await fetch(`${API_BASE}/schemes/${schemeId}/export/pdf`, {
+  const job = await apiFetch<ExportJob>(`/schemes/${schemeId}/export/pdf`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${access ?? ''}` },
   });
-  if (!res.ok) throw new Error('Failed to start PDF export');
-  const job: ExportJob = await res.json();
   const completed = await pollJob(job.id, onProgress);
+  const { access } = getTokens();
   const downloadRes = await fetch(`${API_BASE}/jobs/${completed.id}/download`, {
     headers: { Authorization: `Bearer ${access ?? ''}` },
   });
