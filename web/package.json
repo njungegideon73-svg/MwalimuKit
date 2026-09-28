@@ -23,7 +23,7 @@
     "@mwalimukit/curriculum": "*",
     "@mwalimukit/rubrics": "*",
     "@mwalimukit/types": "*",
-    "@sentry/react": "^10.70.0",
+    "@sentry/react": "^11.0.0",
     "@sentry/replay": "^10.70.0",
     "@tanstack/react-query": "^5.101.4",
     "dexie": "^4.0.4",
